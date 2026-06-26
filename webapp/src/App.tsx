@@ -11,13 +11,13 @@ import {
   BarChart3,
   Sparkles,
   Settings,
-  Plus,
   Bell,
+  MessagesSquare,
 } from "lucide-react";
 import FaceIntro from "./components/FaceIntro";
 import FaceMark from "./components/FaceMark";
 import VoiceAssistant from "./components/VoiceAssistant";
-import AgentChat from "./components/AgentChat";
+import ParticleField from "./components/ParticleField";
 import Dashboard from "./pages/Dashboard";
 import MapView from "./pages/MapView";
 import Companies from "./pages/Companies";
@@ -26,12 +26,14 @@ import Outreach from "./pages/Outreach";
 import DataCSV from "./pages/DataCSV";
 import Inbox from "./pages/Inbox";
 import Insights from "./pages/Insights";
+import Assistant from "./pages/Assistant";
 import { StoreProvider, useStore } from "./lib/store";
 
-type View = "dashboard" | "map" | "companies" | "agents" | "outreach" | "data" | "inbox" | "insights";
+type View = "dashboard" | "assistant" | "map" | "companies" | "agents" | "outreach" | "data" | "inbox" | "insights";
 
 const NAV: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "dashboard", label: "Overview", icon: LayoutDashboard },
+  { id: "assistant", label: "Assistant", icon: MessagesSquare },
   { id: "inbox", label: "Inbox", icon: InboxIcon },
   { id: "map", label: "Map", icon: MapIcon },
   { id: "companies", label: "Companies", icon: Building2 },
@@ -53,14 +55,13 @@ export default function App() {
 
 function Shell() {
   const [view, setView] = useState<View>("dashboard");
-  const [chatOpen, setChatOpen] = useState(false);
   const { openCount } = useStore();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setChatOpen((o) => !o);
+        setView("assistant");
       }
     };
     window.addEventListener("keydown", onKey);
@@ -74,6 +75,7 @@ function Shell() {
       transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
       style={{ position: "relative", height: "100%", display: "flex" }}
     >
+      <ParticleField />
       <div className="aurora" />
 
       {/* Sidebar */}
@@ -188,10 +190,9 @@ function Shell() {
             backdropFilter: "blur(14px)",
           }}
         >
-          {/* Ask bar — opens the agent chat (one entry point, not a separate
-              "Chat" button + search box). */}
+          {/* Ask bar — opens the full Assistant dashboard (⌘K also opens it). */}
           <button
-            onClick={() => setChatOpen(true)}
+            onClick={() => setView("assistant")}
             style={{
               display: "flex",
               alignItems: "center",
@@ -214,7 +215,6 @@ function Shell() {
           </button>
 
           <VoiceAssistant />
-          <AgentChat open={chatOpen} onClose={() => setChatOpen(false)} />
 
           <button
             onClick={() => setView("inbox")}
@@ -236,19 +236,27 @@ function Shell() {
 
         {/* Routed content. Keyed fade-in per view, no AnimatePresence/exit:
             an exiting view that holds a WebGL map can stall mode="wait" and
-            wedge navigation, so we mount the new view immediately. */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "26px 28px 48px" }}>
-          <motion.div key={view} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.26 }}>
-            {view === "dashboard" && <Dashboard onOpenInbox={() => setView("inbox")} />}
-            {view === "inbox" && <Inbox />}
-            {view === "insights" && <Insights />}
-            {view === "map" && <MapView />}
-            {view === "companies" && <Companies />}
-            {view === "agents" && <Agents />}
-            {view === "outreach" && <Outreach />}
-            {view === "data" && <DataCSV />}
-          </motion.div>
-        </div>
+            wedge navigation, so we mount the new view immediately.
+            The Assistant renders full-bleed (it manages its own panes/scroll);
+            every other view keeps the padded scroll container. */}
+        {view === "assistant" ? (
+          <div style={{ flex: 1, minHeight: 0 }}>
+            <Assistant />
+          </div>
+        ) : (
+          <div style={{ flex: 1, overflowY: "auto", padding: "26px 28px 48px" }}>
+            <motion.div key={view} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.26 }}>
+              {view === "dashboard" && <Dashboard onOpenInbox={() => setView("inbox")} />}
+              {view === "inbox" && <Inbox />}
+              {view === "insights" && <Insights />}
+              {view === "map" && <MapView />}
+              {view === "companies" && <Companies />}
+              {view === "agents" && <Agents />}
+              {view === "outreach" && <Outreach />}
+              {view === "data" && <DataCSV />}
+            </motion.div>
+          </div>
+        )}
       </main>
     </motion.div>
   );
