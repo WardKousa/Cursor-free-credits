@@ -5,8 +5,12 @@ import NLScatter from "./NLScatter";
 
 export const MAPBOX_TOKEN_KEY = "mooizicht_mapbox_token";
 
+// Token comes from VITE_MAPBOX_TOKEN (.env) or an in-app override in
+// localStorage. It is NOT hardcoded here — GitHub push protection blocks
+// committing Mapbox tokens (and committing one to a repo leaks it). With no
+// token, the map falls back to the static NL scatter.
 export function getMapboxToken(): string {
-  const env = (import.meta as any).env?.VITE_MAPBOXID as string | undefined;
+  const env = (import.meta as any).env?.VITE_MAPBOX_TOKEN as string | undefined;
   return localStorage.getItem(MAPBOX_TOKEN_KEY) || env || "";
 }
 

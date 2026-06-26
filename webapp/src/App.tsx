@@ -17,7 +17,7 @@ import {
 import FaceIntro from "./components/FaceIntro";
 import FaceMark from "./components/FaceMark";
 import VoiceAssistant from "./components/VoiceAssistant";
-import ParticleField from "./components/ParticleField";
+import VideoBackground from "./components/VideoBackground";
 import Dashboard from "./pages/Dashboard";
 import MapView from "./pages/MapView";
 import Companies from "./pages/Companies";
@@ -77,8 +77,7 @@ function Shell() {
       transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
       style={{ position: "relative", height: "100%", display: "flex" }}
     >
-      <ParticleField />
-      <div className="aurora" />
+      <VideoBackground />
 
       {/* Sidebar */}
       <aside
