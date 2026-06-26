@@ -4,7 +4,6 @@ import {
   LayoutDashboard,
   Map as MapIcon,
   Building2,
-  Bot,
   Mail,
   Table2,
   Inbox as InboxIcon,
@@ -21,16 +20,14 @@ import VideoBackground from "./components/VideoBackground";
 import Dashboard from "./pages/Dashboard";
 import MapView from "./pages/MapView";
 import Companies from "./pages/Companies";
-import Agents from "./pages/Agents";
-import Outreach from "./pages/Outreach";
+import OutreachComms from "./pages/OutreachComms";
 import DataCSV from "./pages/DataCSV";
 import Inbox from "./pages/Inbox";
 import Insights from "./pages/Insights";
 import Assistant from "./pages/Assistant";
-import Communications from "./pages/Communications";
 import { StoreProvider, useStore } from "./lib/store";
 
-type View = "dashboard" | "assistant" | "map" | "companies" | "agents" | "outreach" | "data" | "inbox" | "insights" | "communications";
+type View = "dashboard" | "assistant" | "map" | "companies" | "outreach" | "data" | "inbox" | "insights";
 
 const NAV: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "dashboard", label: "Overview", icon: LayoutDashboard },
@@ -39,9 +36,7 @@ const NAV: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "map", label: "Map", icon: MapIcon },
   { id: "companies", label: "Companies", icon: Building2 },
   { id: "insights", label: "Insights", icon: BarChart3 },
-  { id: "agents", label: "Agents", icon: Bot },
   { id: "outreach", label: "Outreach", icon: Mail },
-  { id: "communications", label: "Communications", icon: Mail },
   { id: "data", label: "Data", icon: Table2 },
 ];
 
@@ -213,23 +208,26 @@ function Shell() {
             <kbd style={{ fontSize: 11, color: "var(--text-faint)", border: "1px solid var(--border)", borderRadius: 6, padding: "2px 6px", fontFamily: "var(--mono)" }}>⌘K</kbd>
           </button>
 
-          <VoiceAssistant />
+          {/* Controls grouped flush to the right edge. */}
+          <div style={{ display: "flex", alignItems: "center", gap: 14, marginLeft: "auto" }}>
+            <VoiceAssistant />
 
-          <button
-            onClick={() => setView("inbox")}
-            title="Agent requests"
-            style={{ position: "relative", width: 38, height: 38, borderRadius: 11, border: "1px solid var(--border)", background: "var(--panel)", color: "var(--text-dim)", display: "grid", placeItems: "center" }}
-          >
-            <Bell size={17} />
-            {openCount > 0 && (
-              <span style={{ position: "absolute", top: -5, right: -5, minWidth: 17, height: 17, padding: "0 5px", borderRadius: 999, background: "var(--accent)", color: "#1a0e06", fontSize: 10.5, fontWeight: 700, display: "grid", placeItems: "center", border: "2px solid var(--bg)" }}>
-                {openCount}
-              </span>
-            )}
-          </button>
+            <button
+              onClick={() => setView("inbox")}
+              title="Agent requests"
+              style={{ position: "relative", width: 38, height: 38, borderRadius: 11, border: "1px solid var(--border)", background: "var(--panel)", color: "var(--text-dim)", display: "grid", placeItems: "center" }}
+            >
+              <Bell size={17} />
+              {openCount > 0 && (
+                <span style={{ position: "absolute", top: -5, right: -5, minWidth: 17, height: 17, padding: "0 5px", borderRadius: 999, background: "var(--accent)", color: "#1a0e06", fontSize: 10.5, fontWeight: 700, display: "grid", placeItems: "center", border: "2px solid var(--bg)" }}>
+                  {openCount}
+                </span>
+              )}
+            </button>
 
-          <div style={{ width: 34, height: 34, borderRadius: 999, background: "var(--grad-gemini)", display: "grid", placeItems: "center", fontSize: 13, fontWeight: 600, color: "#0a0a0f" }}>
-            JC
+            <div style={{ width: 34, height: 34, borderRadius: 999, background: "var(--grad-gemini)", display: "grid", placeItems: "center", fontSize: 13, fontWeight: 600, color: "#0a0a0f" }}>
+              JC
+            </div>
           </div>
         </header>
 
@@ -250,9 +248,7 @@ function Shell() {
               {view === "insights" && <Insights />}
               {view === "map" && <MapView />}
               {view === "companies" && <Companies />}
-              {view === "agents" && <Agents />}
-              {view === "outreach" && <Outreach />}
-              {view === "communications" && <Communications />}
+              {view === "outreach" && <OutreachComms />}
               {view === "data" && <DataCSV />}
             </motion.div>
           </div>

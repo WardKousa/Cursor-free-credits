@@ -93,8 +93,8 @@ export default function Dashboard({ onOpenInbox }: { onOpenInbox: () => void }) 
             gap: 12,
             padding: "13px 16px",
             borderRadius: 12,
-            border: "1px solid color-mix(in srgb, var(--accent) 35%, transparent)",
-            background: "var(--grad-soft)",
+            border: "1px solid var(--border)",
+            background: "var(--panel-strong)",
             color: "var(--text)",
             textAlign: "left",
           }}
@@ -230,8 +230,8 @@ export default function Dashboard({ onOpenInbox }: { onOpenInbox: () => void }) 
                 key={c.id}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "1.5fr 1fr 1fr auto",
-                  gap: 12,
+                  gridTemplateColumns: "1fr 180px 180px 130px",
+                  gap: 16,
                   alignItems: "center",
                   padding: "12px 4px",
                   borderTop: i === 0 ? "none" : "1px solid var(--border)",
@@ -239,11 +239,13 @@ export default function Dashboard({ onOpenInbox }: { onOpenInbox: () => void }) 
                 }}
               >
                 <div style={{ fontWeight: 500 }}>{c.name}</div>
-                <div style={{ color: "var(--text-dim)" }}>{c.industry}</div>
-                <div style={{ color: "var(--text-dim)", display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ color: "var(--text-dim)", textAlign: "right" }}>{c.industry}</div>
+                <div style={{ color: "var(--text-dim)", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
                   <MapPin size={13} /> {c.city}
                 </div>
-                <Badge color={statusColors[c.status]}>{c.status === "won" ? "meeting booked" : "replied"}</Badge>
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <Badge color={statusColors[c.status]}>{c.status === "won" ? "meeting booked" : "replied"}</Badge>
+                </div>
               </div>
             ))}
         </div>
