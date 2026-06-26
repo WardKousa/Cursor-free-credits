@@ -52,6 +52,12 @@ public class CommunicationsEndpoint {
     CommunicationsResponse list() {
         String url = properties.getN8n().getCommunicationsUrl();
         if (url == null || url.isBlank()) {
+            url = System.getenv("N8N_COMMUNICATIONS_URL");
+        }
+        if (url == null || url.isBlank()) {
+            url = System.getProperty("N8N_COMMUNICATIONS_URL");
+        }
+        if (url == null || url.isBlank()) {
             return new CommunicationsResponse(List.of(),
                     "Communications backend is not configured (missing N8N_COMMUNICATIONS_URL).");
         }
