@@ -1,0 +1,2 @@
+# Cursor-free-credits
+AI! 
