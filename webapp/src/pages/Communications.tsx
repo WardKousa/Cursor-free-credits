@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Mail, RefreshCw, Inbox as InboxIcon, AlertTriangle, LogIn } from "lucide-react";
+import { Mail, RefreshCw, Inbox as InboxIcon, AlertTriangle, LogIn, Search, X } from "lucide-react";
 import { Card, Badge } from "../components/ui";
 
 type Email = {
@@ -70,6 +70,20 @@ export default function Communications() {
   const [selected, setSelected] = useState<Email | null>(null);
   const [token, setToken] = useState<string>(() => sessionStorage.getItem(TOKEN_KEY) || "");
   const tokenClientRef = useRef<any>(null);
+  const [query, setQuery] = useState("");
+  const [unreadOnly, setUnreadOnly] = useState(false);
+
+  const filtered = emails.filter((e) => {
+    if (unreadOnly && !e.labels?.includes("UNREAD")) return false;
+    if (!query.trim()) return true;
+    const q = query.toLowerCase();
+    return (
+      (e.from || "").toLowerCase().includes(q) ||
+      (e.to || "").toLowerCase().includes(q) ||
+      (e.subject || "").toLowerCase().includes(q) ||
+      (e.snippet || "").toLowerCase().includes(q)
+    );
+  });
 
   // ---- client-side Gmail (browser OAuth via GIS) ----------------------
   const fetchGmail = useCallback(async (accessToken: string) => {
@@ -192,6 +206,42 @@ export default function Communications() {
         </Card>
       )}
 
+      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 240, padding: "10px 13px", borderRadius: 11, border: "1px solid var(--border)", background: "var(--panel)" }}>
+          <Search size={15} color="var(--text-faint)" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by sender, subject, or content…"
+            style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: "var(--text)", fontSize: 13.5 }}
+          />
+          {query && (
+            <button onClick={() => setQuery("")} style={{ background: "none", border: "none", color: "var(--text-faint)", cursor: "pointer", display: "grid", placeItems: "center" }}>
+              <X size={14} />
+            </button>
+          )}
+        </div>
+        <button
+          onClick={() => setUnreadOnly((v) => !v)}
+          style={{
+            padding: "10px 14px",
+            borderRadius: 11,
+            border: `1px solid ${unreadOnly ? "color-mix(in srgb, var(--accent) 50%, transparent)" : "var(--border)"}`,
+            background: unreadOnly ? "color-mix(in srgb, var(--accent) 14%, transparent)" : "transparent",
+            color: unreadOnly ? "var(--accent)" : "var(--text-dim)",
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: "pointer",
+          }}
+        >
+          Unread only
+        </button>
+        <span style={{ fontSize: 12, color: "var(--text-faint)" }}>
+          {filtered.length} of {emails.length}
+        </span>
+      </div>
+
+
       <div style={{ display: "grid", gridTemplateColumns: selected ? "1fr 1.2fr" : "1fr", gap: 16 }}>
         <Card pad={0}>
           {needsConnect ? (
@@ -202,13 +252,15 @@ export default function Communications() {
             </div>
           ) : loading && emails.length === 0 ? (
             <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)" }}>Loading…</div>
-          ) : emails.length === 0 ? (
+          ) : filtered.length === 0 ? (
             <div style={{ padding: 40, textAlign: "center", color: "var(--text-faint)" }}>
               <InboxIcon size={26} style={{ marginBottom: 8 }} />
-              <div style={{ fontSize: 14 }}>No emails yet.</div>
+              <div style={{ fontSize: 14 }}>
+                {emails.length === 0 ? "No emails yet." : "No emails match your filters."}
+              </div>
             </div>
           ) : (
-            emails.map((e, i) => {
+            filtered.map((e, i) => {
               const active = selected?.id === e.id;
               const unread = e.labels?.includes("UNREAD");
               return (
