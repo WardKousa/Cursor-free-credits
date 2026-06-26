@@ -186,13 +186,76 @@ input::placeholder {
   }
 }
 
-/* Shared chrome surface. Commit 1: a plain translucent panel so the dashboard
-   is reviewable. Task 2 upgrades THIS class in place to Apple Liquid Glass —
-   nothing else changes. */
+/* ===== Apple Liquid Glass material (iOS 26 / macOS Tahoe 26) =============
+   One reusable surface treatment for chrome blocks only (sidebar, status
+   panel, composer, toolbars/chips/menus). Not generic frosted glass: the
+   particles behind are refracted (blur + saturate + brightness), capped by a
+   thin specular edge highlight on the top/left, lifted by a soft drop shadow,
+   and floated over a faint dimming scrim so text stays legible over bright
+   particle clusters. Tint/opacity adapt to light + dark. Tokens live in :root
+   so the whole look is tuned in one place. */
+:root {
+  --glass-tint: 224 16% 7%;          /* dark surface base (HSL channels) */
+  --glass-fill: 0.52;                /* scrim opacity behind the glass */
+  --glass-blur: 22px;
+  --glass-sat: 180%;
+  --glass-bright: 1.06;
+  --glass-spec-top: rgba(255, 255, 255, 0.22);   /* specular edge highlight */
+  --glass-spec-side: rgba(255, 255, 255, 0.08);
+  --glass-inner-dark: rgba(0, 0, 0, 0.22);
+  --glass-drop: 0 22px 50px -24px rgba(0, 0, 0, 0.7);
+  --glass-sheen-1: rgba(255, 255, 255, 0.07);
+  --glass-sheen-2: rgba(255, 255, 255, 0.012);
+}
+
 .glass-surface {
-  background: rgba(12, 12, 15, 0.62);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  position: relative;
+  background:
+    linear-gradient(155deg, var(--glass-sheen-1) 0%, transparent 42%),
+    linear-gradient(to bottom, var(--glass-sheen-2), transparent 60%),
+    hsla(var(--glass-tint) / var(--glass-fill));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) brightness(var(--glass-bright));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) brightness(var(--glass-bright));
+  box-shadow:
+    inset 0 1px 0 var(--glass-spec-top),          /* top specular line */
+    inset 1px 0 0 var(--glass-spec-side),          /* left specular line */
+    inset 0 -1px 0 var(--glass-inner-dark),        /* bottom inner shadow → depth */
+    var(--glass-drop);                             /* soft outer drop shadow */
+}
+
+/* Lensing edge: a brighter refraction band hugging the top rim, the tell that
+   separates Liquid Glass from a flat blur. Non-interactive, no layout impact. */
+.glass-surface::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.10), transparent 18%);
+  mix-blend-mode: screen;
+  opacity: 0.7;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  /* fall back to a solid, legible panel when the OS asks for less transparency */
+  .glass-surface { background: hsl(var(--glass-tint)); backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .glass-surface::before { display: none; }
+}
+
+/* Light-ready tokens. The app is dark-only today, so these activate only when
+   it explicitly opts into light mode via <html data-theme="light"> — NOT off
+   the OS prefers-color-scheme (which would paint white chrome over the dark
+   app for a light-OS user). Drop-in ready for when a light theme lands. */
+:root[data-theme="light"] {
+  --glass-tint: 220 28% 96%;
+  --glass-fill: 0.55;
+  --glass-bright: 1.02;
+  --glass-spec-top: rgba(255, 255, 255, 0.9);
+  --glass-spec-side: rgba(255, 255, 255, 0.5);
+  --glass-inner-dark: rgba(15, 23, 42, 0.08);
+  --glass-drop: 0 22px 50px -26px rgba(15, 23, 42, 0.28);
+  --glass-sheen-1: rgba(255, 255, 255, 0.55);
+  --glass-sheen-2: rgba(255, 255, 255, 0.2);
 }
 
 @keyframes fadeUp {
