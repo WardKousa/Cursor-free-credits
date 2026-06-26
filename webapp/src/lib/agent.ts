@@ -58,8 +58,13 @@ export function extractReply(raw: string): string {
 export type SendCallbacks = {
   onToken?: (chunk: string) => void;       // streamed text delta
   onTool?: (ev: ToolEvent) => void;        // tool / agent action observed
-  signal?: AbortSignal;
+  signal?: AbortSignal;                    // caller abort (e.g. Stop button)
+  timeoutMs?: number;                      // hard timeout; default 120s
 };
+
+/** Default request timeout. Heavy multi-step agent jobs can run ~50–90s, so we
+ *  allow up to 2 minutes before giving up — well past the usual ~30s default. */
+export const DEFAULT_TIMEOUT_MS = 120_000;
 
 export type SendResult = {
   text: string;
@@ -83,15 +88,40 @@ export async function sendToAgent(
   cb: SendCallbacks = {}
 ): Promise<SendResult> {
   const started = performance.now();
-  // Keep the request minimal so we don't change how the backend responds:
-  // no forced Accept / stream flag (some backends content-negotiate on those).
-  // We detect streaming purely from the response content-type below.
-  const res = await fetch(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, history }),
-    signal: cb.signal,
-  });
+
+  // Explicit timeout via AbortController (fetch has no JS timeout of its own).
+  // We abort on our own timer OR when the caller's signal fires (Stop button),
+  // and tell the two apart so the message is accurate.
+  const timeoutMs = cb.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const ctrl = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; ctrl.abort(); }, timeoutMs);
+  if (cb.signal) {
+    if (cb.signal.aborted) ctrl.abort();
+    else cb.signal.addEventListener("abort", () => ctrl.abort(), { once: true });
+  }
+
+  let res: Response;
+  try {
+    // Keep the request minimal so we don't change how the backend responds:
+    // no forced Accept / stream flag (some backends content-negotiate on those).
+    // We detect streaming purely from the response content-type below.
+    res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, history }),
+      signal: ctrl.signal,
+    });
+  } catch (e: any) {
+    clearTimeout(timer);
+    if (timedOut) {
+      throw new Error(
+        `request timed out after ${Math.round(timeoutMs / 1000)}s — the job may still be running on the backend. Try a smaller request, or run heavy jobs asynchronously.`
+      );
+    }
+    throw e; // user abort (AbortError) or a real network/CORS failure
+  }
+  clearTimeout(timer);
 
   // A non-2xx is a backend failure, not an empty reply — surface it loudly
   // instead of rendering a blank agent bubble.

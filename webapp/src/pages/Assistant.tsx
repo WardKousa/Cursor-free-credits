@@ -65,9 +65,19 @@ export default function Assistant() {
   // ---- composer --------------------------------------------------------
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [elapsed, setElapsed] = useState(0); // seconds the current request has run
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
   const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+  // tick an elapsed counter while a request is in flight, so a long (≈50s+)
+  // heavy job shows progress instead of looking frozen.
+  useEffect(() => {
+    if (!busy) { setElapsed(0); return; }
+    const t0 = Date.now();
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - t0) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [busy]);
 
   // mobile drawers
   const [sideOpen, setSideOpen] = useState(false);
@@ -212,7 +222,12 @@ export default function Assistant() {
             <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start", gap: 5 }}>
               <div style={{ maxWidth: "86%", padding: "11px 14px", borderRadius: 15, background: m.role === "user" ? "var(--grad-soft)" : "var(--panel-strong)", border: "1px solid var(--border)", color: "var(--text)", borderBottomRightRadius: m.role === "user" ? 5 : 15, borderBottomLeftRadius: m.role === "agent" ? 5 : 15 }}>
                 {m.role === "agent" ? (
-                  m.text ? <Markdown text={m.text} /> : <span style={{ color: "var(--text-faint)", fontSize: 13.5 }}>agent is thinking…</span>
+                  m.text ? <Markdown text={m.text} /> : (
+                    <span style={{ color: "var(--text-faint)", fontSize: 13.5 }}>
+                      {busy ? `agent is working… ${elapsed}s` : "agent is thinking…"}
+                      {busy && elapsed >= 20 && <span style={{ display: "block", fontSize: 11.5, marginTop: 4 }}>Heavy tasks (research, CRM writes) can take up to ~2 min.</span>}
+                    </span>
+                  )
                 ) : (
                   <span style={{ fontSize: 14, lineHeight: 1.5 }}>{m.text}</span>
                 )}
