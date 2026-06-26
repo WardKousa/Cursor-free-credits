@@ -32,7 +32,7 @@ export default function MapView() {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 14 }}>
         <Card pad={token ? 0 : 22} style={{ overflow: "hidden", minHeight: 520 }}>
           {!token && (
-            <div style={{ display: "flex", gap: 10, alignItems: "center", padding: 14, borderRadius: 12, border: "1px dashed var(--border-strong)", background: "var(--grad-soft)", marginBottom: 16 }}>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", padding: 14, borderRadius: 12, border: "1px dashed var(--border-strong)", background: "var(--panel-strong)", marginBottom: 16 }}>
               <KeyRound size={18} color="var(--accent)" />
               <div style={{ flex: 1, fontSize: 13, color: "var(--text-dim)" }}>Add a Mapbox token for the live dark map.</div>
               <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="pk.eyJ…" style={{ width: 180, padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg-2)", color: "var(--text)", fontSize: 12, fontFamily: "var(--mono)" }} />
@@ -51,7 +51,7 @@ export default function MapView() {
                 <Row label="Fit score" value={`${selected.score}/100`} />
                 <Row label="Employees" value={selected.employees.toLocaleString()} />
                 <Row label="Coordinates" value={`${selected.lat.toFixed(3)}, ${selected.lng.toFixed(3)}`} />
-                <button style={{ marginTop: 6, padding: "10px", borderRadius: 10, border: "1px solid var(--border-strong)", background: "var(--grad-soft)", color: "var(--text)", fontSize: 13, fontWeight: 500 }}>
+                <button style={{ marginTop: 6, padding: "10px", borderRadius: 10, border: "1px solid var(--border-strong)", background: "var(--panel-strong)", color: "var(--text)", fontSize: 13, fontWeight: 500 }}>
                   Assign agent to research
                 </button>
               </div>
