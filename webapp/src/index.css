@@ -125,28 +125,33 @@ input::placeholder {
   filter: blur(40px);
 }
 
-/* ---- Particle background (global, behind everything) ------------------- */
-.particle-field {
+/* ---- Video background (global, behind everything) ---------------------- */
+.video-bg {
   position: fixed;
   inset: 0;
   z-index: 0;
   pointer-events: none;
+  overflow: hidden;
+  background: #050507;
 }
-.particle-field canvas {
+.video-bg video {
   display: block;
   width: 100%;
   height: 100%;
+  object-fit: cover;
 }
-/* A thin, even translucent screen that always sits over the field, so the
-   background everywhere reads dimmed and UI text stays legible. Chrome blocks
-   (.glass-surface) deepen this same screen on top. */
-.particle-field__scrim {
+/* A slight frosted translucent layer over the whole video — softens and dims
+   it everywhere so UI text stays legible. Intentionally lighter than the chrome
+   blocks (.glass-surface), which add a stronger frost on top of this. */
+.video-bg__scrim {
   position: absolute;
   inset: 0;
-  background: rgba(5, 5, 8, 0.46);
+  background: rgba(6, 6, 10, 0.34);
+  backdrop-filter: blur(5px) saturate(108%);
+  -webkit-backdrop-filter: blur(5px) saturate(108%);
 }
 @media (prefers-reduced-motion: reduce) {
-  .particle-field__scrim { background: rgba(5, 5, 8, 0.6); }
+  .video-bg__scrim { background: rgba(6, 6, 10, 0.5); }
 }
 
 /* ---- Assistant dashboard layout ---------------------------------------- */
