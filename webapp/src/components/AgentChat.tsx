@@ -11,6 +11,47 @@ const GREETING: Msg = {
   text: "Hi — I'm your outreach agent. Ask me to find companies, draft emails, check who replied, or update the CRM.",
 };
 
+// Pull the assistant text out of whatever shape the backend returns.
+// Handles plain strings, array-wrapped payloads (common from n8n webhooks),
+// the n8n AI Agent `output` field, and the usual reply/text/message keys.
+function extractReply(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return "(empty response from agent)";
+
+  let data: any;
+  try {
+    data = JSON.parse(trimmed);
+  } catch {
+    // Not JSON — the body itself is the reply (e.g. plain-text webhook).
+    return trimmed;
+  }
+
+  const fromObject = (o: any): string | undefined => {
+    if (o == null) return undefined;
+    if (typeof o === "string") return o;
+    if (Array.isArray(o)) {
+      for (const item of o) {
+        const r = fromObject(item);
+        if (r) return r;
+      }
+      return undefined;
+    }
+    if (typeof o === "object") {
+      const v =
+        o.reply ?? o.output ?? o.text ?? o.message ?? o.answer ??
+        o.response ?? o.content ?? o.json ?? o.data ?? o.result;
+      if (v != null) return fromObject(v);
+    }
+    return undefined;
+  };
+
+  const reply = fromObject(data);
+  if (reply) return String(reply);
+
+  // JSON we couldn't map — show it rather than a useless placeholder.
+  return typeof data === "object" ? JSON.stringify(data) : String(data);
+}
+
 /** Controlled agent chat dropdown. Opened from the Ask bar in the topbar. */
 export default function AgentChat({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [showCfg, setShowCfg] = useState(false);
@@ -52,9 +93,9 @@ export default function AgentChat({ open, onClose }: { open: boolean; onClose: (
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ prompt, history }),
         });
-        const data = await res.json().catch(() => ({}));
-        const reply = data.reply || data.text || data.message || "(no reply field in response)";
-        setMsgs((m) => [...m, { role: "agent", text: String(reply) }]);
+        const raw = await res.text();
+        const reply = extractReply(raw);
+        setMsgs((m) => [...m, { role: "agent", text: reply }]);
       }
     } catch (e: any) {
       setMsgs((m) => [...m, { role: "agent", text: `Couldn't reach the agent backend: ${e.message}. Make sure it's running on :8080 and allows this origin (CORS).` }]);
