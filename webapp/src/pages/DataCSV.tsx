@@ -90,9 +90,6 @@ export default function DataCSV() {
             Data
           </div>
           <h1 style={{ margin: 0, fontSize: 28, fontWeight: 650, letterSpacing: "-0.03em", lineHeight: 1.05 }}>Lead sources</h1>
-          <p style={{ margin: "8px 0 0", color: "var(--text-faint)", fontSize: 14 }}>
-            Connect a Google Sheet once — it syncs automatically. Agents enrich every row.
-          </p>
         </div>
         <button onClick={download} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderRadius: 11, border: "1px solid var(--border-strong)", background: "transparent", color: "var(--text)", fontSize: 13.5, fontWeight: 500 }}>
           <Download size={15} /> Export CSV

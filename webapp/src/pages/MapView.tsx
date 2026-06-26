@@ -24,9 +24,6 @@ export default function MapView() {
           Map
         </div>
         <h1 style={{ margin: 0, fontSize: 28, fontWeight: 650, letterSpacing: "-0.03em", lineHeight: 1.05 }}>Target map</h1>
-        <p style={{ margin: "8px 0 0", color: "var(--text-faint)", fontSize: 14 }}>
-          Every company our agents are working, by location and response status.
-        </p>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 14 }}>

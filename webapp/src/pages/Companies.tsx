@@ -22,9 +22,6 @@ export default function Companies() {
           Pipeline
         </div>
         <h1 style={{ margin: 0, fontSize: 28, fontWeight: 650, letterSpacing: "-0.03em", lineHeight: 1.05 }}>Companies</h1>
-        <p style={{ margin: "8px 0 0", color: "var(--text-faint)", fontSize: 14 }}>
-          {rows.length} of {companies.length} companies in the pipeline.
-        </p>
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>

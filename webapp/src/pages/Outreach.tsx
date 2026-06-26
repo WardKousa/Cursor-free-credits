@@ -20,9 +20,6 @@ export default function Outreach() {
             Outreach
           </div>
           <h1 style={{ margin: 0, fontSize: 28, fontWeight: 650, letterSpacing: "-0.03em", lineHeight: 1.05 }}>Email outreach</h1>
-          <p style={{ margin: "8px 0 0", color: "var(--text-faint)", fontSize: 14 }}>
-            Campaigns, AI-drafted emails and automated follow-up sequences.
-          </p>
         </div>
         <span style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 999, border: "1px solid color-mix(in srgb, var(--good) 35%, transparent)", background: "color-mix(in srgb, var(--good) 10%, transparent)", color: "var(--good)", fontSize: 12.5, fontWeight: 500 }}>
           <Zap size={14} /> Autopilot {autopilot ? "on" : "off"} · Sender sends approved emails automatically

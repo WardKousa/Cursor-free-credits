@@ -69,10 +69,7 @@ export default function Communications() {
           <div style={{ fontFamily: "var(--mono)", fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: "var(--accent)", marginBottom: 10 }}>
             Communications
           </div>
-          <h1 style={{ margin: 0, fontSize: 28, fontWeight: 650, letterSpacing: "-0.03em", lineHeight: 1.05 }}>Email with your customers</h1>
-          <p style={{ margin: "8px 0 0", color: "var(--text-faint)", fontSize: 14 }}>
-            Live view of the Gmail inbox the agents send and receive from.
-          </p>
+          <h1 style={{ margin: 0, fontSize: 28, fontWeight: 650, letterSpacing: "-0.03em", lineHeight: 1.05 }}>Email with your customers</h1>
         </div>
         <button onClick={load} disabled={loading} style={btn(loading)}>
           <RefreshCw size={14} style={{ animation: loading ? "spin 1s linear infinite" : undefined }} /> Refresh

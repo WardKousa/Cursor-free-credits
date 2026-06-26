@@ -152,9 +152,6 @@ export default function Insights() {
           Insights
         </div>
         <h1 style={{ margin: 0, fontSize: 28, fontWeight: 650, letterSpacing: "-0.03em", lineHeight: 1.05 }}>Build any report you want</h1>
-        <p style={{ margin: "8px 0 0", color: "var(--text-faint)", fontSize: 14 }}>
-          Pick a chart, choose what it measures, group it, and filter — e.g. responses of tech companies with 50–200 employees.
-        </p>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 14 }}>
