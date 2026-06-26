@@ -38,19 +38,16 @@ export function SectionTitle({ title, sub }: { title: string; sub?: string }) {
 }
 
 export function Badge({ color, children }: { color: string; children: ReactNode }) {
+  // Just a colored dot + label — no pill background or border.
   return (
     <span
       style={{
         display: "inline-flex",
         alignItems: "center",
         gap: 6,
-        fontSize: 11,
+        fontSize: 11.5,
         fontWeight: 500,
-        padding: "3px 9px",
-        borderRadius: 999,
         color,
-        background: `color-mix(in srgb, ${color} 14%, transparent)`,
-        border: `1px solid color-mix(in srgb, ${color} 35%, transparent)`,
         textTransform: "capitalize",
       }}
     >

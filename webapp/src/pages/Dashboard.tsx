@@ -71,9 +71,6 @@ export default function Dashboard({ onOpenInbox }: { onOpenInbox: () => void }) 
           <h1 style={{ margin: 0, fontSize: 28, fontWeight: 650, letterSpacing: "-0.03em", lineHeight: 1.05 }}>
             Who we contacted, and who's responding
           </h1>
-          <p style={{ margin: "8px 0 0", color: "var(--text-faint)", fontSize: 14 }}>
-            Reach, location and reply activity across your outreach.
-          </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           {RANGES.map((r) => (

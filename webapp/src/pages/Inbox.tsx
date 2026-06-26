@@ -38,9 +38,6 @@ export default function Inbox() {
             Inbox
           </div>
           <h1 style={{ margin: 0, fontSize: 28, fontWeight: 650, letterSpacing: "-0.03em", lineHeight: 1.05 }}>Requests from your agents</h1>
-          <p style={{ margin: "8px 0 0", color: "var(--text-faint)", fontSize: 14 }}>
-            Agents run on autopilot and only stop here when they need a human decision.
-          </p>
         </div>
         <button
           onClick={() => setAutopilot(!autopilot)}
