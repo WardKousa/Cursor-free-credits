@@ -15,7 +15,7 @@ type Email = {
 
 const ENDPOINT =
   (import.meta as any).env?.VITE_COMMUNICATIONS_ENDPOINT ||
-  "http://localhost:8080/api/communications";
+  "/api/communications";
 
 function formatDate(raw: string | null | undefined): string {
   if (!raw) return "";
