@@ -1,6 +1,50 @@
 // Mock domain data for mooizicht — outreach automation.
 // In production these come from n8n workflows, Apify scrapers and your CSV imports.
 
+// CRM status — the exact lifecycle values the n8n CRM Agent writes to the sheet.
+export type Status =
+  | "uncontacted"
+  | "awaiting"
+  | "owner_input"
+  | "counter"
+  | "rejected"
+  | "meeting"
+  | "shutdown";
+
+// Display label + color per status. One source of truth for the whole UI.
+export const STATUS_META: Record<Status, { label: string; color: string }> = {
+  uncontacted: { label: "Uncontacted", color: "#8a8f98" },
+  awaiting: { label: "Awaiting Reply", color: "#ff8a3d" },
+  owner_input: { label: "Owner Input Needed", color: "#2f7dff" },
+  counter: { label: "Counter Rejection", color: "#efc25a" },
+  rejected: { label: "Rejected", color: "#ff4d6d" },
+  meeting: { label: "Meeting Booked", color: "#4fd06a" },
+  shutdown: { label: "Shutdown", color: "#5b616b" },
+};
+
+// Pipeline order (early → terminal), used for the dashboard funnel + legends.
+export const STATUS_ORDER: Status[] = ["uncontacted", "awaiting", "owner_input", "counter", "rejected", "meeting", "shutdown"];
+
+export const statusColors = Object.fromEntries(
+  (Object.entries(STATUS_META) as [Status, { color: string }][]).map(([k, v]) => [k, v.color])
+) as Record<Status, string>;
+
+export const statusLabel = (s: Status): string => STATUS_META[s]?.label ?? s;
+
+/** Map any raw CRM status string to a canonical Status. Order matters:
+ *  "Counter Rejection" must be matched before "Rejected". */
+export function normalizeStatus(raw?: string): Status {
+  const s = (raw || "").trim().toLowerCase();
+  if (!s || s.includes("uncontact")) return "uncontacted";
+  if (s.includes("await")) return "awaiting";
+  if (s.includes("owner")) return "owner_input";
+  if (s.includes("counter")) return "counter";
+  if (s.includes("reject")) return "rejected";
+  if (s.includes("meeting") || s.includes("booked") || s.includes("won")) return "meeting";
+  if (s.includes("shut")) return "shutdown";
+  return "uncontacted";
+}
+
 export type Company = {
   id: string;
   name: string;
@@ -9,32 +53,24 @@ export type Company = {
   lng: number;
   lat: number;
   employees: number;
-  status: "researching" | "queued" | "contacted" | "replied" | "won";
+  status: Status;
   score: number; // fit score 0-100
 };
 
 export const companies: Company[] = [
-  { id: "c1", name: "Dakdekkers Ummels", industry: "Construction", city: "Maastricht", lng: 5.6909, lat: 50.8514, employees: 24, status: "won", score: 92 },
-  { id: "c2", name: "Altis Groep", industry: "Real Estate", city: "Amsterdam", lng: 4.9041, lat: 52.3676, employees: 140, status: "replied", score: 88 },
-  { id: "c3", name: "Noord Logistics", industry: "Logistics", city: "Rotterdam", lng: 4.4777, lat: 51.9244, employees: 310, status: "contacted", score: 74 },
-  { id: "c4", name: "Veld Agritech", industry: "Agriculture", city: "Utrecht", lng: 5.1214, lat: 52.0907, employees: 56, status: "researching", score: 81 },
-  { id: "c5", name: "Brouwer Energy", industry: "Energy", city: "Eindhoven", lng: 5.4697, lat: 51.4416, employees: 210, status: "queued", score: 69 },
-  { id: "c6", name: "Kustlijn Marine", industry: "Maritime", city: "Den Haag", lng: 4.3007, lat: 52.0705, employees: 88, status: "contacted", score: 77 },
-  { id: "c7", name: "Hanze Software", industry: "Software", city: "Groningen", lng: 6.5665, lat: 53.2194, employees: 42, status: "replied", score: 95 },
-  { id: "c8", name: "Zuid Pharma", industry: "Pharma", city: "Nijmegen", lng: 5.8372, lat: 51.8126, employees: 175, status: "researching", score: 84 },
-  { id: "c9", name: "Tulp Retail", industry: "Retail", city: "Haarlem", lng: 4.6462, lat: 52.3874, employees: 96, status: "won", score: 90 },
-  { id: "c10", name: "Maas Industrials", industry: "Manufacturing", city: "Tilburg", lng: 5.0913, lat: 51.5606, employees: 420, status: "queued", score: 66 },
-  { id: "c11", name: "Polder Capital", industry: "Finance", city: "Amsterdam", lng: 4.8852, lat: 52.3702, employees: 60, status: "contacted", score: 79 },
-  { id: "c12", name: "Delta Foods", industry: "Food", city: "Breda", lng: 4.7683, lat: 51.5719, employees: 150, status: "replied", score: 83 },
+  { id: "c1", name: "Dakdekkers Ummels", industry: "Construction", city: "Maastricht", lng: 5.6909, lat: 50.8514, employees: 24, status: "meeting", score: 92 },
+  { id: "c2", name: "Altis Groep", industry: "Real Estate", city: "Amsterdam", lng: 4.9041, lat: 52.3676, employees: 140, status: "counter", score: 88 },
+  { id: "c3", name: "Noord Logistics", industry: "Logistics", city: "Rotterdam", lng: 4.4777, lat: 51.9244, employees: 310, status: "awaiting", score: 74 },
+  { id: "c4", name: "Veld Agritech", industry: "Agriculture", city: "Utrecht", lng: 5.1214, lat: 52.0907, employees: 56, status: "uncontacted", score: 81 },
+  { id: "c5", name: "Brouwer Energy", industry: "Energy", city: "Eindhoven", lng: 5.4697, lat: 51.4416, employees: 210, status: "uncontacted", score: 69 },
+  { id: "c6", name: "Kustlijn Marine", industry: "Maritime", city: "Den Haag", lng: 4.3007, lat: 52.0705, employees: 88, status: "owner_input", score: 77 },
+  { id: "c7", name: "Hanze Software", industry: "Software", city: "Groningen", lng: 6.5665, lat: 53.2194, employees: 42, status: "meeting", score: 95 },
+  { id: "c8", name: "Zuid Pharma", industry: "Pharma", city: "Nijmegen", lng: 5.8372, lat: 51.8126, employees: 175, status: "awaiting", score: 84 },
+  { id: "c9", name: "Tulp Retail", industry: "Retail", city: "Haarlem", lng: 4.6462, lat: 52.3874, employees: 96, status: "rejected", score: 90 },
+  { id: "c10", name: "Maas Industrials", industry: "Manufacturing", city: "Tilburg", lng: 5.0913, lat: 51.5606, employees: 420, status: "uncontacted", score: 66 },
+  { id: "c11", name: "Polder Capital", industry: "Finance", city: "Amsterdam", lng: 4.8852, lat: 52.3702, employees: 60, status: "owner_input", score: 79 },
+  { id: "c12", name: "Delta Foods", industry: "Food", city: "Breda", lng: 4.7683, lat: 51.5719, employees: 150, status: "shutdown", score: 83 },
 ];
-
-export const statusColors: Record<Company["status"], string> = {
-  researching: "#2f7dff",
-  queued: "#efd29a",
-  contacted: "#ff8a3d",
-  replied: "#ff2d9b",
-  won: "#4fd06a",
-};
 
 export type Agent = {
   id: string;

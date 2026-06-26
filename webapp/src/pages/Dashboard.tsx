@@ -4,7 +4,7 @@ import {
 } from "recharts";
 import { Bell, ChevronRight, Database } from "lucide-react";
 import { Card, SectionTitle, Badge } from "../components/ui";
-import { statusColors, Company } from "../lib/data";
+import { statusColors, STATUS_META, STATUS_ORDER, statusLabel, Company, Status } from "../lib/data";
 import { useStore } from "../lib/store";
 
 const tooltipStyle = { background: "rgba(14,14,21,0.95)", border: "1px solid var(--border-strong)", borderRadius: 12, fontSize: 12, color: "#f6f5f3" };
@@ -15,25 +15,20 @@ const PALETTE = ["#2f7dff", "#4fd06a", "#efd29a", "#ff8a3d", "#ff2d9b", "#7c5cff
  *  Google Sheet / CSV) — no mock numbers. */
 function derive(companies: Company[]) {
   const total = companies.length;
-  const by = (s: Company["status"]) => companies.filter((c) => c.status === s).length;
-  const counts = { researching: by("researching"), queued: by("queued"), contacted: by("contacted"), replied: by("replied"), won: by("won") };
-  const reachedOut = counts.contacted + counts.replied + counts.won;
-  const responded = counts.replied + counts.won;
+  const n = (s: Status) => companies.filter((c) => c.status === s).length;
+  const c = { uncontacted: n("uncontacted"), awaiting: n("awaiting"), owner_input: n("owner_input"), counter: n("counter"), rejected: n("rejected"), meeting: n("meeting"), shutdown: n("shutdown") };
+  const reachedOut = total - c.uncontacted;            // everyone we've contacted
+  const responded = c.owner_input + c.counter + c.rejected + c.meeting; // they engaged back
   const replyRate = reachedOut ? (responded / reachedOut) * 100 : 0;
-  const avgScore = total ? Math.round(companies.reduce((s, c) => s + (c.score || 0), 0) / total) : 0;
+  const avgScore = total ? Math.round(companies.reduce((s, x) => s + (x.score || 0), 0) / total) : 0;
 
-  const pipeline = [
-    { stage: "Researching", value: counts.researching, fill: statusColors.researching },
-    { stage: "Queued", value: counts.queued, fill: statusColors.queued },
-    { stage: "Contacted", value: counts.contacted, fill: statusColors.contacted },
-    { stage: "Replied", value: counts.replied, fill: statusColors.replied },
-    { stage: "Won", value: counts.won, fill: statusColors.won },
-  ];
+  const pipeline = STATUS_ORDER.map((k) => ({ stage: STATUS_META[k].label, value: c[k], fill: STATUS_META[k].color }));
 
   const responses = [
     { name: "Responded", value: responded, fill: "#4fd06a" },
-    { name: "Contacted, no reply", value: counts.contacted, fill: "#ff8a3d" },
-    { name: "Not yet contacted", value: counts.researching + counts.queued, fill: "#2f7dff" },
+    { name: "Awaiting reply", value: c.awaiting, fill: STATUS_META.awaiting.color },
+    { name: "Not contacted", value: c.uncontacted, fill: STATUS_META.uncontacted.color },
+    { name: "Shutdown", value: c.shutdown, fill: STATUS_META.shutdown.color },
   ].filter((r) => r.value > 0);
 
   const indCounts: Record<string, number> = {};
@@ -51,10 +46,10 @@ function derive(companies: Company[]) {
   ];
 
   const kpis = [
-    { label: "Companies in CRM", value: total.toLocaleString(), sub: `${counts.researching + counts.queued} not yet contacted` },
+    { label: "Companies in CRM", value: total.toLocaleString(), sub: `${c.uncontacted} uncontacted` },
     { label: "Reached out", value: reachedOut.toLocaleString(), sub: total ? `${Math.round((reachedOut / total) * 100)}% of pipeline` : "—" },
     { label: "Reply rate", value: replyRate.toFixed(1) + "%", sub: `${responded} responded` },
-    { label: "Meetings booked", value: counts.won.toLocaleString(), sub: `avg ICP ${avgScore}` },
+    { label: "Meetings booked", value: c.meeting.toLocaleString(), sub: `avg ICP ${avgScore}` },
   ];
 
   return { total, replyRate, pipeline, responses, industryMix, icp, kpis };
@@ -64,7 +59,8 @@ export default function Dashboard({ onOpenInbox }: { onOpenInbox: () => void }) 
   const { companies, openCount, sheetState, lastSync } = useStore();
   const a = useMemo(() => derive(companies), [companies]);
 
-  const recent = companies.filter((c) => c.status === "replied" || c.status === "won").slice(0, 8);
+  const RESPONDED: Status[] = ["meeting", "counter", "rejected", "owner_input"];
+  const recent = companies.filter((c) => RESPONDED.includes(c.status)).slice(0, 8);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -113,12 +109,12 @@ export default function Dashboard({ onOpenInbox }: { onOpenInbox: () => void }) 
         <Card>
           <SectionTitle title="Pipeline by stage" sub="Every company by where it is in outreach" />
           <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={a.pipeline} margin={{ left: -18, right: 8, top: 8 }}>
-              <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
-              <XAxis dataKey="stage" stroke="var(--text-faint)" fontSize={11} tickLine={false} axisLine={false} />
-              <YAxis stroke="var(--text-faint)" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+            <BarChart data={a.pipeline} layout="vertical" margin={{ left: 8, right: 16, top: 4 }}>
+              <CartesianGrid stroke="rgba(255,255,255,0.05)" horizontal={false} />
+              <XAxis type="number" hide allowDecimals={false} />
+              <YAxis dataKey="stage" type="category" stroke="var(--text-dim)" fontSize={12} tickLine={false} axisLine={false} width={138} />
               <Tooltip contentStyle={tooltipStyle} labelStyle={tipText} itemStyle={tipText} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
-              <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={46}>
+              <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={20}>
                 {a.pipeline.map((d) => <Cell key={d.stage} fill={d.fill} />)}
               </Bar>
             </BarChart>
@@ -192,7 +188,7 @@ export default function Dashboard({ onOpenInbox }: { onOpenInbox: () => void }) 
               <div style={{ color: "var(--text-dim)", textAlign: "right" }}>{c.industry}</div>
               <div style={{ color: "var(--text-dim)", textAlign: "right" }}>{c.employees ? `${c.employees.toLocaleString()} emp` : "—"}</div>
               <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                <Badge color={statusColors[c.status]}>{c.status === "won" ? "meeting booked" : "replied"}</Badge>
+                <Badge color={statusColors[c.status]}>{statusLabel(c.status)}</Badge>
               </div>
             </div>
           ))}

@@ -16,7 +16,7 @@ import {
 import { PieChart as PieIcon, BarChart3, LineChart as LineIcon, Donut, Plus, Trash2, Save } from "lucide-react";
 import { Card, SectionTitle } from "../components/ui";
 import { useStore } from "../lib/store";
-import { Company } from "../lib/data";
+import { Company, statusLabel, STATUS_ORDER } from "../lib/data";
 
 const PALETTE = ["#2f7dff", "#4fd06a", "#efd29a", "#ff8a3d", "#ff2d9b", "#7c5cff", "#37c4d6"];
 
@@ -48,7 +48,8 @@ function aggregate(companies: Company[], cfg: Config) {
       c.employees >= cfg.empMin &&
       c.employees <= cfg.empMax
   );
-  const key = (c: Company) => (cfg.groupBy === "empBand" ? empBand(c.employees) : (c[cfg.groupBy] as string));
+  const key = (c: Company) =>
+    cfg.groupBy === "empBand" ? empBand(c.employees) : cfg.groupBy === "status" ? statusLabel(c.status) : (c[cfg.groupBy] as string);
   const groups: Record<string, Company[]> = {};
   rows.forEach((c) => {
     const k = key(c) || "—";
@@ -121,7 +122,7 @@ const Empty = () => (
 export default function Insights() {
   const { companies } = useStore();
   const industries = useMemo(() => ["all", ...Array.from(new Set(companies.map((c) => c.industry)))], [companies]);
-  const statuses = ["all", "researching", "queued", "contacted", "replied", "won"];
+  const statuses = ["all", ...STATUS_ORDER];
 
   const [cfg, setCfg] = useState<Config>({
     type: "donut",
@@ -186,7 +187,7 @@ export default function Insights() {
             <Select value={cfg.industry} onChange={(v) => set({ industry: v })} options={industries.map((i) => ({ v: i, l: i === "all" ? "All industries" : i }))} />
           </Group>
           <Group label="Status">
-            <Select value={cfg.status} onChange={(v) => set({ status: v })} options={statuses.map((s) => ({ v: s, l: s === "all" ? "All statuses" : s }))} />
+            <Select value={cfg.status} onChange={(v) => set({ status: v })} options={statuses.map((s) => ({ v: s, l: s === "all" ? "All statuses" : statusLabel(s as any) }))} />
           </Group>
           <Group label={`Employees: ${cfg.empMin} – ${cfg.empMax}`}>
             <div style={{ display: "flex", gap: 8 }}>

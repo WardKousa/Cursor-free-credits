@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { Search } from "lucide-react";
 import { Card, Badge, Pill } from "../components/ui";
-import { statusColors, Company } from "../lib/data";
+import { statusColors, statusLabel, STATUS_ORDER } from "../lib/data";
 import { useStore } from "../lib/store";
 
-const STATUSES: (Company["status"] | "all")[] = ["all", "researching", "queued", "contacted", "replied", "won"];
+const STATUSES: { value: string; label: string }[] = [
+  { value: "all", label: "All" },
+  ...STATUS_ORDER.map((s) => ({ value: s, label: statusLabel(s) })),
+];
 
 export default function Companies() {
   const { companies } = useStore();
@@ -36,8 +39,8 @@ export default function Companies() {
         </div>
         <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
           {STATUSES.map((s) => (
-            <Pill key={s} active={filter === s} onClick={() => setFilter(s)}>
-              {s}
+            <Pill key={s.value} active={filter === s.value} onClick={() => setFilter(s.value)}>
+              {s.label}
             </Pill>
           ))}
         </div>
@@ -88,7 +91,7 @@ export default function Companies() {
               <span style={{ fontSize: 12, color: "var(--text-dim)" }}>{c.score}</span>
             </div>
             <div>
-              <Badge color={statusColors[c.status]}>{c.status}</Badge>
+              <Badge color={statusColors[c.status]}>{statusLabel(c.status)}</Badge>
             </div>
           </div>
         ))}

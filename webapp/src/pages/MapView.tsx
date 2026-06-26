@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { KeyRound } from "lucide-react";
 import { Card, SectionTitle, Badge } from "../components/ui";
-import { statusColors, Company } from "../lib/data";
+import { statusColors, statusLabel, STATUS_ORDER, Company } from "../lib/data";
 import CompanyMap, { MAPBOX_TOKEN_KEY, getMapboxToken } from "../components/CompanyMap";
 import { useStore } from "../lib/store";
 
@@ -44,7 +44,7 @@ export default function MapView() {
             <SectionTitle title={selected ? selected.name : "Select a company"} sub={selected ? `${selected.industry} · ${selected.city}` : "Click any marker to inspect"} />
             {selected ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <Badge color={statusColors[selected.status]}>{selected.status}</Badge>
+                <Badge color={statusColors[selected.status]}>{statusLabel(selected.status)}</Badge>
                 <Row label="Fit score" value={`${selected.score}/100`} />
                 <Row label="Employees" value={selected.employees.toLocaleString()} />
                 <Row label="Coordinates" value={`${selected.lat.toFixed(3)}, ${selected.lng.toFixed(3)}`} />
@@ -60,12 +60,12 @@ export default function MapView() {
           <Card>
             <SectionTitle title="By status" />
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {Object.entries(statusColors).map(([k, c]) => {
+              {STATUS_ORDER.map((k) => {
                 const n = companies.filter((x) => x.status === k).length;
                 return (
                   <div key={k} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
-                    <span style={{ width: 9, height: 9, borderRadius: 999, background: c }} />
-                    <span style={{ flex: 1, textTransform: "capitalize", color: "var(--text-dim)" }}>{k}</span>
+                    <span style={{ width: 9, height: 9, borderRadius: 999, background: statusColors[k] }} />
+                    <span style={{ flex: 1, color: "var(--text-dim)" }}>{statusLabel(k)}</span>
                     <span style={{ fontWeight: 600 }}>{n}</span>
                   </div>
                 );

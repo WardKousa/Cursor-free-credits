@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { companies as seedCompanies, Company } from "./data";
+import { companies as seedCompanies, Company, normalizeStatus } from "./data";
 
 /* ------------------------------------------------------------------ types */
 
@@ -103,15 +103,6 @@ function rowsToCompanies(headers: string[], rows: string[][]): Company[] | null 
   const st = idx(["status"]);
   const sc = idx(["score", "fit", "icp_rating", "icp_score"]);
   const em = idx(["employees", "size", "company_size"]);
-  const mapStatus = (raw?: string): Company["status"] => {
-    const s = (raw || "").trim().toLowerCase();
-    if (["researching", "queued", "contacted", "replied", "won"].includes(s)) return s as Company["status"];
-    if (s.includes("meeting")) return "won";
-    if (s.includes("uncontacted")) return "queued";
-    if (s.includes("awaiting")) return "contacted";
-    if (s.includes("reject") || s.includes("counter") || s.includes("owner") || s.includes("shutdown")) return "replied";
-    return "queued";
-  };
   return rows
     .filter((r) => r[ni])
     .map((r, i) => ({
@@ -122,7 +113,7 @@ function rowsToCompanies(headers: string[], rows: string[][]): Company[] | null 
       lat: la >= 0 ? parseFloat(r[la]) : NaN, // no geo column → off-map (skipped by map)
       lng: lo >= 0 ? parseFloat(r[lo]) : NaN,
       employees: em >= 0 ? parseInt(r[em]) || 0 : 0,
-      status: mapStatus(st >= 0 ? r[st] : undefined),
+      status: normalizeStatus(st >= 0 ? r[st] : undefined),
       score: sc >= 0 ? parseInt(r[sc]) || 60 : 60,
     }));
 }

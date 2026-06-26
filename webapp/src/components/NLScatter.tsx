@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { companies, statusColors } from "../lib/data";
+import { companies, statusColors, statusLabel } from "../lib/data";
 
 // NL bounding box (approx)
 const BOUNDS = { minLng: 3.3, maxLng: 7.25, minLat: 50.7, maxLat: 53.6 };
@@ -81,7 +81,7 @@ export default function NLScatter() {
               <>
                 <div style={{ fontWeight: 600 }}>{c.name}</div>
                 <div style={{ color: "var(--text-faint)", marginTop: 2 }}>
-                  {c.industry} · {c.city} · {c.status}
+                  {c.industry} · {c.city} · {statusLabel(c.status)}
                 </div>
               </>
             );
