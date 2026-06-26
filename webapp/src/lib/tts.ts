@@ -31,8 +31,22 @@ export async function elevenLabsTTS(text: string, signal?: AbortSignal): Promise
     signal,
   });
   if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`ElevenLabs TTS ${res.status}${detail ? ` — ${detail.slice(0, 120)}` : ""}`);
+    const body = await res.text().catch(() => "");
+    let msg = `ElevenLabs TTS error (${res.status})`;
+    try {
+      const j = JSON.parse(body);
+      const detail = j?.detail;
+      const status = detail?.status || j?.status;
+      const text = detail?.message || (typeof detail === "string" ? detail : "") || j?.message;
+      if (status === "payment_issue" || /payment/i.test(body)) {
+        msg = "ElevenLabs billing issue — settle your invoice to enable the voice. Using the browser voice for now.";
+      } else if (res.status === 401) {
+        msg = "ElevenLabs auth failed — check the API key. Using the browser voice for now.";
+      } else if (text) {
+        msg = `ElevenLabs: ${text}. Using the browser voice for now.`;
+      }
+    } catch { /* non-JSON body */ }
+    throw new Error(msg);
   }
   const blob = await res.blob();
   const audio = new Audio(URL.createObjectURL(blob));
