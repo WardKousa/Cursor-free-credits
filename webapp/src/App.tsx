@@ -27,9 +27,10 @@ import DataCSV from "./pages/DataCSV";
 import Inbox from "./pages/Inbox";
 import Insights from "./pages/Insights";
 import Assistant from "./pages/Assistant";
+import Communications from "./pages/Communications";
 import { StoreProvider, useStore } from "./lib/store";
 
-type View = "dashboard" | "assistant" | "map" | "companies" | "agents" | "outreach" | "data" | "inbox" | "insights";
+type View = "dashboard" | "assistant" | "map" | "companies" | "agents" | "outreach" | "data" | "inbox" | "insights" | "communications";
 
 const NAV: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "dashboard", label: "Overview", icon: LayoutDashboard },
@@ -40,6 +41,7 @@ const NAV: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "insights", label: "Insights", icon: BarChart3 },
   { id: "agents", label: "Agents", icon: Bot },
   { id: "outreach", label: "Outreach", icon: Mail },
+  { id: "communications", label: "Communications", icon: Mail },
   { id: "data", label: "Data", icon: Table2 },
 ];
 
@@ -251,6 +253,7 @@ function Shell() {
               {view === "companies" && <Companies />}
               {view === "agents" && <Agents />}
               {view === "outreach" && <Outreach />}
+              {view === "communications" && <Communications />}
               {view === "data" && <DataCSV />}
             </motion.div>
           </div>

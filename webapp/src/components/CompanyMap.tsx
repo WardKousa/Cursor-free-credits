@@ -6,7 +6,7 @@ import NLScatter from "./NLScatter";
 export const MAPBOX_TOKEN_KEY = "mooizicht_mapbox_token";
 
 export function getMapboxToken(): string {
-  const env = (import.meta as any).env?.VITE_MAPBOX_TOKEN as string | undefined;
+  const env = (import.meta as any).env?.VITE_MAPBOXID as string | undefined;
   return localStorage.getItem(MAPBOX_TOKEN_KEY) || env || "";
 }
 
