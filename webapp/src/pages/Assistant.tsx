@@ -1,15 +1,14 @@
-import { createElement, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Plus, MessageSquare, Trash2, Send, Square, Sparkles, Settings2,
   Wifi, WifiOff, Loader2, Activity, Wrench, Copy, Check,
-  PanelLeft, PanelRight, X, AudioLines,
+  PanelLeft, PanelRight, X,
 } from "lucide-react";
 import Markdown from "../components/Markdown";
 import {
   ENDPOINT_KEY, sendToAgent, estimateTokens, type ToolEvent, type ChatTurn,
 } from "../lib/agent";
 
-const AGENT_KEY = "mooizicht_11labs_agent";
 const SESSIONS_KEY = "mooizicht_asst_sessions";
 
 type Msg = { id: string; role: "user" | "agent"; text: string; streaming?: boolean };
@@ -27,32 +26,12 @@ const newSession = (): Session => ({
   createdAt: Date.now(),
 });
 
-/** Loads the ElevenLabs ConvAI embed script once, when voice is first opened. */
-function useConvaiScript(active: boolean) {
-  useEffect(() => {
-    if (!active) return;
-    if (document.querySelector("script[data-elevenlabs-convai]")) return;
-    const s = document.createElement("script");
-    s.src = "https://unpkg.com/@elevenlabs/convai-widget-embed";
-    s.async = true;
-    s.setAttribute("data-elevenlabs-convai", "1");
-    document.body.appendChild(s);
-  }, [active]);
-}
 
 export default function Assistant() {
   // ---- config ----------------------------------------------------------
   const envEndpoint = (import.meta as any).env?.VITE_CHAT_ENDPOINT as string | undefined;
   const [endpoint, setEndpoint] = useState(() => localStorage.getItem(ENDPOINT_KEY) || envEndpoint || "");
-  const elevenAgent = useMemo(() => {
-    const env = (import.meta as any).env?.VITE_ELEVENLABS_AGENT_ID as string | undefined;
-    return localStorage.getItem(AGENT_KEY) || env || "";
-  }, []);
   const [showCfg, setShowCfg] = useState(false);
-
-  // ---- ElevenLabs voice ("Talk") --------------------------------------
-  const [talkOpen, setTalkOpen] = useState(false);
-  useConvaiScript(talkOpen && !!elevenAgent);
 
   // ---- sessions --------------------------------------------------------
   const [sessions, setSessions] = useState<Session[]>(() => {
@@ -244,37 +223,8 @@ export default function Assistant() {
           ))}
         </div>
 
-        {/* ElevenLabs voice panel */}
-        {talkOpen && (
-          <div style={{ margin: "0 12px 8px", padding: 14, borderRadius: 14, border: "1px solid var(--border-strong)", background: "var(--panel)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-              <AudioLines size={15} color="var(--accent-2)" />
-              <span style={{ fontWeight: 600, fontSize: 13.5, flex: 1 }}>Talk to your agent</span>
-              <button onClick={() => setTalkOpen(false)} aria-label="Close voice" style={{ ...iconBtn, width: 28, height: 28 }}><X size={15} /></button>
-            </div>
-            {elevenAgent ? (
-              <div>
-                {createElement("elevenlabs-convai", { "agent-id": elevenAgent } as any)}
-                <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 8, lineHeight: 1.5 }}>Live voice via ElevenLabs — tap the orb to start talking.</p>
-              </div>
-            ) : (
-              <p style={{ fontSize: 12.5, color: "var(--text-dim)", lineHeight: 1.6, margin: 0 }}>
-                No ElevenLabs agent set. Add <code style={{ fontFamily: "var(--mono)" }}>VITE_ELEVENLABS_AGENT_ID</code> to <code style={{ fontFamily: "var(--mono)" }}>.env</code> (or via the topbar “Talk”) to enable live voice.
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* composer */}
-        <div className="glass-surface" style={{ margin: 12, marginTop: talkOpen ? 0 : 0, padding: 10, borderRadius: 15, border: "1px solid var(--border-strong)", display: "flex", alignItems: "flex-end", gap: 8 }}>
-          <button
-            onClick={() => setTalkOpen((o) => !o)}
-            title="Talk to your agent (ElevenLabs voice)"
-            aria-pressed={talkOpen}
-            style={{ height: 42, flexShrink: 0, padding: "0 14px", borderRadius: 12, border: "1px solid color-mix(in srgb, var(--accent-2) 40%, transparent)", background: talkOpen ? "var(--accent-2)" : "color-mix(in srgb, var(--accent-2) 12%, transparent)", color: talkOpen ? "#fff" : "var(--accent-2)", display: "flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 500 }}
-          >
-            <AudioLines size={17} /> Talk
-          </button>
+        {/* composer (voice lives in the topbar “Talk”) */}
+        <div className="glass-surface" style={{ margin: 12, marginTop: 0, padding: 10, borderRadius: 15, border: "1px solid var(--border-strong)", display: "flex", alignItems: "flex-end", gap: 8 }}>
           <textarea
             ref={inputRef}
             value={input}
@@ -312,7 +262,7 @@ export default function Assistant() {
             <div style={{ fontSize: 11.5, color: "var(--text-dim)", marginBottom: 6 }}>Agent endpoint (n8n webhook or /api/chat)</div>
             <input value={endpoint} onChange={(e) => saveEndpoint(e.target.value)} placeholder="https://…/webhook/chat" style={{ width: "100%", padding: "8px 10px", borderRadius: 9, border: "1px solid var(--border)", background: "var(--bg-2)", color: "var(--text)", fontSize: 12, fontFamily: "var(--mono)", outline: "none" }} />
             <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 8 }}>
-              Voice: {elevenAgent ? <span style={{ color: "var(--good)" }}>ElevenLabs agent connected</span> : "set VITE_ELEVENLABS_AGENT_ID for live voice"}
+              Voice lives in the topbar “Talk” (speak → agent → ElevenLabs TTS).
             </div>
           </div>
         )}

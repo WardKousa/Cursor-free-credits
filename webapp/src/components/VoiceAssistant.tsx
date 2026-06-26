@@ -1,41 +1,19 @@
-import { createElement, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Mic, X, AudioLines, Square, Loader2 } from "lucide-react";
 import { ENDPOINT_KEY, sendToAgent, type ChatTurn } from "../lib/agent";
-
-const AGENT_KEY = "mooizicht_11labs_agent";
-
-/** Loads the ElevenLabs ConvAI embed script once. */
-function useConvaiScript(active: boolean) {
-  useEffect(() => {
-    if (!active) return;
-    if (document.querySelector("script[data-elevenlabs-convai]")) return;
-    const s = document.createElement("script");
-    s.src = "https://unpkg.com/@elevenlabs/convai-widget-embed";
-    s.async = true;
-    s.type = "text/javascript";
-    s.setAttribute("data-elevenlabs-convai", "1");
-    document.body.appendChild(s);
-  }, [active]);
-}
-
-const stripForSpeech = (s: string) =>
-  s.replace(/```[\s\S]*?```/g, " code block ").replace(/[#*`_>]/g, "").replace(/\[(.*?)\]\(.*?\)/g, "$1").trim();
+import { elevenLabsTTS, browserTTS, hasElevenLabs } from "../lib/tts";
 
 type VState = "idle" | "listening" | "thinking" | "speaking";
 
 /**
- * Voice "Talk" — a full spoken loop with the agent:
- *   speak → Web Speech STT → POST to the agent backend (n8n) → speak the reply.
- * It actually answers and runs the agent's tools (the backend does the work),
- * not just transcribe. When an ElevenLabs agent ID is set, the full-duplex
- * ConvAI widget is used instead.
+ * Voice "Talk" — speak to your agent and hear it reply.
+ *   Web Speech STT → your n8n agent (the brain) → reply text → ElevenLabs TTS
+ *   (your API key) for the voice, falling back to the browser voice if no key.
+ * No ElevenLabs "agent mode" — ElevenLabs is used only to synthesize speech.
  */
 export default function VoiceAssistant() {
   const [open, setOpen] = useState(false);
-  const envAgent = (import.meta as any).env?.VITE_ELEVENLABS_AGENT_ID as string | undefined;
-  const [agentId, setAgentId] = useState(() => localStorage.getItem(AGENT_KEY) || envAgent || "");
-  const [draft, setDraft] = useState("");
 
   const envEndpoint = (import.meta as any).env?.VITE_CHAT_ENDPOINT as string | undefined;
   const endpoint = localStorage.getItem(ENDPOINT_KEY) || envEndpoint || "";
@@ -46,17 +24,17 @@ export default function VoiceAssistant() {
   const [error, setError] = useState("");
 
   const recRef = useRef<any>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const convoRef = useRef(false); // conversation active → re-listen after each reply
   const historyRef = useRef<ChatTurn[]>([]);
 
-  useConvaiScript(open && !!agentId);
-
   const stopRecognition = () => { try { recRef.current?.stop(); } catch { /* */ } recRef.current = null; };
+  const stopAudio = () => { if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; } window.speechSynthesis?.cancel(); };
 
   const startListening = () => {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) { setError("Speech recognition isn't available in this browser. Use Chrome/Edge, or connect an ElevenLabs agent."); return; }
-    window.speechSynthesis?.cancel(); // barge-in: stop any reply being spoken
+    if (!SR) { setError("Speech recognition isn't available in this browser. Use Chrome or Edge."); return; }
+    stopAudio(); // barge-in: stop any reply being spoken
     const rec = new SR();
     rec.lang = "en-US";
     rec.interimResults = true;
@@ -75,17 +53,25 @@ export default function VoiceAssistant() {
     setError("");
   };
 
-  const speak = (text: string) => {
-    if (!window.speechSynthesis) { setState("idle"); relisten(); return; }
-    const u = new SpeechSynthesisUtterance(stripForSpeech(text));
-    u.lang = "en-US";
-    u.onstart = () => setState("speaking");
-    u.onend = () => { setState("idle"); relisten(); };
-    u.onerror = () => { setState("idle"); relisten(); };
-    window.speechSynthesis.speak(u);
-  };
-
   const relisten = () => { if (convoRef.current) setTimeout(() => { if (convoRef.current) startListening(); }, 350); };
+
+  const speak = async (text: string) => {
+    setState("speaking");
+    try {
+      const audio = await elevenLabsTTS(text); // null when no ElevenLabs key
+      if (audio) {
+        audioRef.current = audio;
+        audio.onended = () => { audioRef.current = null; setState("idle"); relisten(); };
+        audio.onerror = () => { audioRef.current = null; setState("idle"); relisten(); };
+        await audio.play();
+        return;
+      }
+    } catch (e: any) {
+      setError(e.message || "TTS failed — using the browser voice.");
+    }
+    // fallback: browser speech
+    browserTTS(text, () => { setState("idle"); relisten(); });
+  };
 
   const handleFinal = async (text: string) => {
     stopRecognition();
@@ -106,19 +92,13 @@ export default function VoiceAssistant() {
   };
 
   const startConversation = () => { convoRef.current = true; historyRef.current = []; setReply(""); startListening(); };
-  const stopConversation = () => { convoRef.current = false; stopRecognition(); window.speechSynthesis?.cancel(); setState("idle"); };
+  const stopConversation = () => { convoRef.current = false; stopRecognition(); stopAudio(); setState("idle"); };
 
   const close = () => { stopConversation(); setOpen(false); };
-  const saveAgent = () => { localStorage.setItem(AGENT_KEY, draft.trim()); setAgentId(draft.trim()); };
 
-  useEffect(() => () => { stopRecognition(); window.speechSynthesis?.cancel(); }, []);
+  useEffect(() => () => { stopRecognition(); stopAudio(); }, []);
 
-  const stateLabel: Record<VState, string> = {
-    idle: "Tap to start talking",
-    listening: "Listening…",
-    thinking: "Thinking…",
-    speaking: "Speaking…",
-  };
+  const stateLabel: Record<VState, string> = { idle: "Tap to start talking", listening: "Listening…", thinking: "Thinking…", speaking: "Speaking…" };
   const active = state !== "idle";
 
   return (
@@ -135,65 +115,49 @@ export default function VoiceAssistant() {
         <div style={{ position: "fixed", inset: 0, zIndex: 2000 }}>
           <div onClick={close} style={{ position: "absolute", inset: 0 }} />
           <div className="glass-surface" style={{ position: "absolute", top: 70, right: 24, width: 380, maxWidth: "92vw", borderRadius: 18, border: "1px solid var(--border-strong)", padding: 20, animation: "fadeUp .2s ease both" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
               <div style={{ width: 34, height: 34, borderRadius: 10, background: "var(--grad-gemini)", display: "grid", placeItems: "center" }}>
                 <AudioLines size={17} color="#0a0a0f" />
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600, fontSize: 15 }}>Talk to mooizicht</div>
-                <div style={{ fontSize: 11.5, color: "var(--text-faint)" }}>Speak — it answers out loud and runs the agent</div>
+                <div style={{ fontSize: 11.5, color: "var(--text-faint)" }}>
+                  Speak — your agent answers in {hasElevenLabs ? "an ElevenLabs voice" : "the browser voice"}
+                </div>
               </div>
               <button onClick={close} style={{ background: "none", border: "none", color: "var(--text-faint)" }}>
                 <X size={18} />
               </button>
             </div>
 
-            {agentId ? (
-              // Full-duplex ElevenLabs conversational agent
-              <div style={{ marginTop: 14 }}>
-                {createElement("elevenlabs-convai", { "agent-id": agentId } as any)}
-                <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 12, lineHeight: 1.6 }}>
-                  ElevenLabs agent <code style={{ fontFamily: "var(--mono)" }}>{agentId.slice(0, 10)}…</code>.{" "}
-                  <button onClick={() => { localStorage.removeItem(AGENT_KEY); setAgentId(""); }} style={{ background: "none", border: "none", color: "var(--accent-2)", cursor: "pointer", padding: 0, fontSize: 11.5 }}>change</button>
-                </p>
-              </div>
-            ) : (
-              // Web Speech STT → agent → TTS conversation loop
-              <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 14 }}>
-                <button
-                  onClick={active ? stopConversation : startConversation}
-                  style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "20px", borderRadius: 14, border: `1px solid ${active ? "color-mix(in srgb, var(--magenta) 45%, transparent)" : "var(--border-strong)"}`, background: active ? "color-mix(in srgb, var(--magenta) 10%, transparent)" : "var(--panel)", color: "var(--text)" }}
-                >
-                  <div style={{ width: 60, height: 60, borderRadius: 999, display: "grid", placeItems: "center", background: state === "listening" ? "var(--magenta)" : active ? "var(--panel-strong)" : "var(--grad-gemini)", boxShadow: state === "listening" ? "0 0 0 8px color-mix(in srgb, var(--magenta) 18%, transparent)" : "none", transition: "all .2s" }}>
-                    {state === "thinking" ? <Loader2 size={24} color="#fff" className="asst-spin" />
-                      : active ? <Square size={22} color="#fff" />
-                      : <Mic size={24} color="#0a0a0f" />}
-                  </div>
-                  <span style={{ fontSize: 13, fontWeight: 500 }}>{active ? "Tap to stop" : stateLabel.idle}</span>
-                  {active && <span style={{ fontSize: 11.5, color: "var(--magenta)" }}>{stateLabel[state]}</span>}
-                </button>
-
-                {heard && <div style={{ fontSize: 12.5, color: "var(--text-faint)" }}>You: “{heard}”</div>}
-                {reply && (
-                  <div style={{ padding: "11px 13px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--panel)", fontSize: 13, color: "var(--text-dim)", lineHeight: 1.5, maxHeight: 160, overflowY: "auto" }}>
-                    {reply}
-                  </div>
-                )}
-                {error && <div style={{ fontSize: 12, color: "var(--warn)", lineHeight: 1.5 }}>{error}</div>}
-
-                {!endpoint && (
-                  <div style={{ fontSize: 11.5, color: "var(--text-faint)", lineHeight: 1.5 }}>
-                    Tip: set the agent endpoint in the Assistant ⚙ so Talk can reach the backend.
-                  </div>
-                )}
-
-                {/* optional: connect a full-duplex ElevenLabs agent */}
-                <div style={{ paddingTop: 12, borderTop: "1px solid var(--border)", display: "flex", gap: 8 }}>
-                  <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="ElevenLabs agent id (optional)" style={{ flex: 1, padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg-2)", color: "var(--text)", fontSize: 12, fontFamily: "var(--mono)", outline: "none" }} />
-                  <button onClick={saveAgent} disabled={!draft.trim()} style={{ padding: "8px 12px", borderRadius: 8, border: "none", background: draft.trim() ? "var(--accent-2)" : "var(--panel-strong)", color: "#fff", fontSize: 12.5, fontWeight: 500 }}>Connect</button>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <button
+                onClick={active ? stopConversation : startConversation}
+                style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "22px", borderRadius: 14, border: `1px solid ${active ? "color-mix(in srgb, var(--magenta) 45%, transparent)" : "var(--border-strong)"}`, background: active ? "color-mix(in srgb, var(--magenta) 10%, transparent)" : "var(--panel)", color: "var(--text)" }}
+              >
+                <div style={{ width: 60, height: 60, borderRadius: 999, display: "grid", placeItems: "center", background: state === "listening" ? "var(--magenta)" : active ? "var(--panel-strong)" : "var(--grad-gemini)", boxShadow: state === "listening" ? "0 0 0 8px color-mix(in srgb, var(--magenta) 18%, transparent)" : "none", transition: "all .2s" }}>
+                  {state === "thinking" || state === "speaking" ? <Loader2 size={24} color="#fff" className="asst-spin" />
+                    : active ? <Square size={22} color="#fff" />
+                    : <Mic size={24} color="#0a0a0f" />}
                 </div>
+                <span style={{ fontSize: 13, fontWeight: 500 }}>{active ? "Tap to stop" : stateLabel.idle}</span>
+                {active && <span style={{ fontSize: 11.5, color: "var(--magenta)" }}>{stateLabel[state]}</span>}
+              </button>
+
+              {heard && <div style={{ fontSize: 12.5, color: "var(--text-faint)" }}>You: “{heard}”</div>}
+              {reply && (
+                <div style={{ padding: "11px 13px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--panel)", fontSize: 13, color: "var(--text-dim)", lineHeight: 1.5, maxHeight: 160, overflowY: "auto" }}>
+                  {reply}
+                </div>
+              )}
+              {error && <div style={{ fontSize: 12, color: "var(--warn)", lineHeight: 1.5 }}>{error}</div>}
+
+              <div style={{ fontSize: 11, color: "var(--text-faint)", lineHeight: 1.5 }}>
+                {hasElevenLabs
+                  ? "Voice: ElevenLabs TTS. The agent does the work; ElevenLabs only speaks the reply."
+                  : "Set VITE_ELEVENLABS_API_KEY in .env to speak replies in your ElevenLabs voice."}
               </div>
-            )}
+            </div>
           </div>
         </div>,
         document.body
