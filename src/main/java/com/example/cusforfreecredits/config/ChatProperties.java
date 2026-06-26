@@ -21,6 +21,7 @@ public class ChatProperties {
     public static class N8n {
         private String webhookUrl;
         private String webhookSecret;
+        private String communicationsUrl;
 
         public String getWebhookUrl() {
             return webhookUrl;
@@ -36,6 +37,14 @@ public class ChatProperties {
 
         public void setWebhookSecret(String webhookSecret) {
             this.webhookSecret = webhookSecret;
+        }
+
+        public String getCommunicationsUrl() {
+            return communicationsUrl;
+        }
+
+        public void setCommunicationsUrl(String communicationsUrl) {
+            this.communicationsUrl = communicationsUrl;
         }
     }
 
