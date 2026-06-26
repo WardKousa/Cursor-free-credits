@@ -26,6 +26,7 @@ type Store = {
   lastSync: number | null;
   sheetRows: number;
   sheetError: string | null;
+  sheetTable: { headers: string[]; rows: string[][] } | null; // raw CRM rows
   saveSheet: (p: Partial<Store["sheet"]>) => void;
   syncNow: () => Promise<void>;
 
@@ -89,30 +90,39 @@ const seedInbox: InboxItem[] = [
 
 /* ---------------------------------------------------------- sheet → company */
 
+// Map a CRM / lead sheet (the n8n "Demo CRM" columns, or a geo sheet) into the
+// app's Company shape. CRM statuses are bucketed into the app's display states.
 function rowsToCompanies(headers: string[], rows: string[][]): Company[] | null {
   const idx = (names: string[]) => headers.findIndex((h) => names.includes(h.trim().toLowerCase()));
-  const ni = idx(["name", "company"]);
+  const ni = idx(["name", "company", "company_name"]);
+  if (ni < 0) return null;
   const la = idx(["lat", "latitude"]);
   const lo = idx(["lng", "lon", "long", "longitude"]);
-  if (ni < 0 || la < 0 || lo < 0) return null; // not a geo sheet; leave companies as-is
   const ind = idx(["industry", "sector"]);
   const ci = idx(["city", "location"]);
   const st = idx(["status"]);
-  const sc = idx(["score", "fit"]);
-  const em = idx(["employees", "size"]);
-  const valid = (s?: string): Company["status"] =>
-    (["researching", "queued", "contacted", "replied", "won"] as const).includes(s as any) ? (s as any) : "researching";
+  const sc = idx(["score", "fit", "icp_rating", "icp_score"]);
+  const em = idx(["employees", "size", "company_size"]);
+  const mapStatus = (raw?: string): Company["status"] => {
+    const s = (raw || "").trim().toLowerCase();
+    if (["researching", "queued", "contacted", "replied", "won"].includes(s)) return s as Company["status"];
+    if (s.includes("meeting")) return "won";
+    if (s.includes("uncontacted")) return "queued";
+    if (s.includes("awaiting")) return "contacted";
+    if (s.includes("reject") || s.includes("counter") || s.includes("owner") || s.includes("shutdown")) return "replied";
+    return "queued";
+  };
   return rows
-    .filter((r) => r[ni] && r[la] && r[lo])
+    .filter((r) => r[ni])
     .map((r, i) => ({
       id: "s" + i,
       name: r[ni],
       industry: ind >= 0 ? r[ind] : "—",
       city: ci >= 0 ? r[ci] : "—",
-      lat: parseFloat(r[la]),
-      lng: parseFloat(r[lo]),
+      lat: la >= 0 ? parseFloat(r[la]) : NaN, // no geo column → off-map (skipped by map)
+      lng: lo >= 0 ? parseFloat(r[lo]) : NaN,
       employees: em >= 0 ? parseInt(r[em]) || 0 : 0,
-      status: valid(st >= 0 ? r[st]?.toLowerCase() : undefined),
+      status: mapStatus(st >= 0 ? r[st] : undefined),
       score: sc >= 0 ? parseInt(r[sc]) || 60 : 60,
     }));
 }
@@ -126,15 +136,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [companies, setCompanies] = useState<Company[]>(seedCompanies);
 
   const [sheet, setSheet] = useState<Store["sheet"]>(() => {
+    const env = (import.meta as any).env || {};
+    const base = { url: env.VITE_GOOGLE_SHEET_URL || "", apiKey: env.VITE_GOOGLE_SHEETS_API_KEY || "", range: "A1:Z1000", autoSync: true };
     const saved = localStorage.getItem(LS);
-    return saved
-      ? JSON.parse(saved)
-      : { url: "", apiKey: (import.meta as any).env?.VITE_GOOGLE_SHEETS_API_KEY || "", range: "A1:Z1000", autoSync: true };
+    if (!saved) return base;
+    const s = JSON.parse(saved);
+    // prefer saved values, but fall back to env so we don't nag for creds we have
+    return { ...base, ...s, url: s.url || base.url, apiKey: s.apiKey || base.apiKey };
   });
   const [sheetState, setSheetState] = useState<SheetState>("idle");
   const [lastSync, setLastSync] = useState<number | null>(null);
   const [sheetRows, setSheetRows] = useState(0);
   const [sheetError, setSheetError] = useState<string | null>(null);
+  const [sheetTable, setSheetTable] = useState<{ headers: string[]; rows: string[][] } | null>(null);
 
   const [inbox, setInbox] = useState<InboxItem[]>(seedInbox);
   const notifyCfg = JSON.parse(localStorage.getItem(LS_NOTIFY) || "{}");
@@ -196,6 +210,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (!res.ok) throw new Error(json?.error?.message || `HTTP ${res.status}`);
       const values: string[][] = json.values || [];
       setSheetRows(Math.max(0, values.length - 1));
+      setSheetTable(values.length ? { headers: values[0], rows: values.slice(1) } : { headers: [], rows: [] });
       const mapped = values.length ? rowsToCompanies(values[0], values.slice(1)) : null;
       if (mapped && mapped.length) setCompanies(mapped);
       setSheetState("ok");
@@ -268,6 +283,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       lastSync,
       sheetRows,
       sheetError,
+      sheetTable,
       saveSheet,
       syncNow,
       inbox,
@@ -282,7 +298,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       autopilot,
       setAutopilot,
     }),
-    [companies, sheet, sheetState, lastSync, sheetRows, sheetError, inbox, openCount, notifyEmail, notifyWebhook, autopilot, saveSheet, syncNow, resolve, respond, gmailComposeUrl]
+    [companies, sheet, sheetState, lastSync, sheetRows, sheetError, sheetTable, inbox, openCount, notifyEmail, notifyWebhook, autopilot, saveSheet, syncNow, resolve, respond, gmailComposeUrl]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
