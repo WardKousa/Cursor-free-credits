@@ -1,0 +1,14 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="TestApp" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot" nameIsGenerated="true">
+    <envs>
+      <env name="ENVIRONMENT" value="local" />
+    </envs>
+    <option name="FRAME_DEACTIVATION_UPDATE_POLICY" value="UpdateClassesAndResources" />
+    <module name="flux-basic-java" />
+    <option name="SPRING_BOOT_MAIN_CLASS" value="com.example.cusforfreecredits.TestApp" />
+    <option name="VM_PARAMETERS" value="-Xms8g -Xmx8g" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
