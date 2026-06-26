@@ -89,6 +89,7 @@ export default function VoiceAssistant() {
         <div style={{ position: "fixed", inset: 0, zIndex: 2000 }}>
           <div onClick={() => setOpen(false)} style={{ position: "absolute", inset: 0 }} />
           <div
+            className="glass-surface"
             style={{
               position: "absolute",
               top: 70,
@@ -97,8 +98,6 @@ export default function VoiceAssistant() {
               maxWidth: "92vw",
               borderRadius: 18,
               border: "1px solid var(--border-strong)",
-              background: "var(--bg-1)",
-              boxShadow: "var(--shadow)",
               padding: 20,
               animation: "fadeUp .2s ease both",
             }}

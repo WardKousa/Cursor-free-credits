@@ -80,6 +80,7 @@ function Shell() {
 
       {/* Sidebar */}
       <aside
+        className="glass-surface"
         style={{
           position: "relative",
           zIndex: 2,
@@ -90,8 +91,6 @@ function Shell() {
           display: "flex",
           flexDirection: "column",
           gap: 5,
-          background: "rgba(8,8,10,0.55)",
-          backdropFilter: "blur(14px)",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "4px 8px 18px" }}>
@@ -180,14 +179,13 @@ function Shell() {
       <main style={{ position: "relative", zIndex: 1, flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
         {/* Topbar */}
         <header
+          className="glass-surface"
           style={{
             display: "flex",
             alignItems: "center",
             gap: 14,
             padding: "16px 28px",
             borderBottom: "1px solid var(--border)",
-            background: "rgba(8,8,10,0.4)",
-            backdropFilter: "blur(14px)",
           }}
         >
           {/* Ask bar — opens the full Assistant dashboard (⌘K also opens it). */}
