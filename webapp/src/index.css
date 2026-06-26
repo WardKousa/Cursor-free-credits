@@ -188,14 +188,14 @@ input::placeholder {
   }
 }
 
-/* Chrome surface — a flat translucent screen, not glass. The background already
-   sits behind a thin global screen (.particle-field__scrim); a chrome block is
-   just a deeper screen of the same dark tint, so panels read as a stronger dim
-   over the particles. No specular edges, lensing, or saturation — kept matte. */
+/* Chrome surface — a frosted translucent screen (no specular/gloss). The
+   background already sits behind a thin global screen (.particle-field__scrim);
+   a block adds a stronger blurred dim of the same dark tint on top, so the
+   particles read softly through it while text stays legible. */
 .glass-surface {
-  background: rgba(8, 8, 11, 0.58);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background: rgba(8, 8, 11, 0.45);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
 
 @keyframes fadeUp {

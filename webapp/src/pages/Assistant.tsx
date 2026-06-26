@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { createElement, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Plus, MessageSquare, Trash2, Send, Mic, Square, Volume2, VolumeX,
-  Sparkles, Settings2, ChevronDown, Wifi, WifiOff, Loader2, Activity,
-  Wrench, Copy, Check, PanelLeft, PanelRight, X, AudioLines,
+  Plus, MessageSquare, Trash2, Send, Square, Sparkles, Settings2,
+  Wifi, WifiOff, Loader2, Activity, Wrench, Copy, Check,
+  PanelLeft, PanelRight, X, AudioLines,
 } from "lucide-react";
 import Markdown from "../components/Markdown";
-import { useVoiceIO } from "../lib/useVoiceIO";
 import {
   ENDPOINT_KEY, sendToAgent, estimateTokens, type ToolEvent, type ChatTurn,
 } from "../lib/agent";
@@ -16,13 +15,6 @@ const SESSIONS_KEY = "mooizicht_asst_sessions";
 type Msg = { id: string; role: "user" | "agent"; text: string; streaming?: boolean };
 type Session = { id: string; title: string; messages: Msg[]; createdAt: number };
 type Conn = "offline" | "idle" | "connecting" | "streaming" | "error";
-
-const AGENTS = [
-  { id: "orchestrator", label: "Orchestrator", hint: "routes to the right specialist" },
-  { id: "researcher", label: "Researcher", hint: "finds & enriches companies" },
-  { id: "composer", label: "Composer", hint: "drafts outreach emails" },
-  { id: "replier", label: "Replier", hint: "handles inbound replies" },
-];
 
 const GREETING =
   "Hi — I'm your outreach agent. Ask me to **find companies**, **draft emails**, check **who replied**, or update the CRM.";
@@ -35,6 +27,19 @@ const newSession = (): Session => ({
   createdAt: Date.now(),
 });
 
+/** Loads the ElevenLabs ConvAI embed script once, when voice is first opened. */
+function useConvaiScript(active: boolean) {
+  useEffect(() => {
+    if (!active) return;
+    if (document.querySelector("script[data-elevenlabs-convai]")) return;
+    const s = document.createElement("script");
+    s.src = "https://unpkg.com/@elevenlabs/convai-widget-embed";
+    s.async = true;
+    s.setAttribute("data-elevenlabs-convai", "1");
+    document.body.appendChild(s);
+  }, [active]);
+}
+
 export default function Assistant() {
   // ---- config ----------------------------------------------------------
   const envEndpoint = (import.meta as any).env?.VITE_CHAT_ENDPOINT as string | undefined;
@@ -43,9 +48,11 @@ export default function Assistant() {
     const env = (import.meta as any).env?.VITE_ELEVENLABS_AGENT_ID as string | undefined;
     return localStorage.getItem(AGENT_KEY) || env || "";
   }, []);
-  const [agent, setAgent] = useState(AGENTS[0]);
-  const [agentMenu, setAgentMenu] = useState(false);
   const [showCfg, setShowCfg] = useState(false);
+
+  // ---- ElevenLabs voice ("Talk") --------------------------------------
+  const [talkOpen, setTalkOpen] = useState(false);
+  useConvaiScript(talkOpen && !!elevenAgent);
 
   // ---- sessions --------------------------------------------------------
   const [sessions, setSessions] = useState<Session[]>(() => {
@@ -76,15 +83,12 @@ export default function Assistant() {
 
   useEffect(() => setConn(endpoint ? "idle" : "offline"), [endpoint]);
 
-  // ---- composer + voice ------------------------------------------------
+  // ---- composer --------------------------------------------------------
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
   const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-
-  const voice = useVoiceIO({ onFinal: (t) => setInput((cur) => (cur ? cur + " " : "") + t) });
-  const ptt = useRef<{ down: number } | null>(null);
 
   // mobile drawers
   const [sideOpen, setSideOpen] = useState(false);
@@ -99,7 +103,6 @@ export default function Assistant() {
   const send = async (text?: string) => {
     const prompt = (text ?? input).trim();
     if (!prompt || busy) return;
-    voice.stopListening();
 
     const history: ChatTurn[] = active.messages
       .filter((m) => m.text !== GREETING)
@@ -119,7 +122,7 @@ export default function Assistant() {
 
     if (!endpoint) {
       await new Promise((r) => setTimeout(r, 450));
-      const demo = `I'd route “${prompt}” to the **${agent.label}** agent, but no backend endpoint is set yet. Add one via the ⚙ settings — point it at your n8n webhook or \`/api/chat\`.`;
+      const demo = `I'd route “${prompt}” to your agent, but no backend endpoint is set yet. Add one via the ⚙ settings — point it at your n8n webhook or \`/api/chat\`.`;
       patchActive((s) => ({ ...s, messages: s.messages.map((m) => (m.id === agentMsg.id ? { ...m, text: demo, streaming: false } : m)) }));
       setBusy(false);
       return;
@@ -144,15 +147,13 @@ export default function Assistant() {
       setLatency(Math.round(res.latencyMs));
       setTokensOut((n) => n + estimateTokens(res.text));
       setConn("idle");
-      // speak the reply when not muted (skip the streamed case mid-render)
-      if (!voice.muted) voice.speak(agentMsg.id, res.text);
     } catch (e: any) {
       const aborted = e?.name === "AbortError";
       patchActive((s) => ({
         ...s,
         messages: s.messages.map((m) =>
           m.id === agentMsg.id
-            ? { ...m, streaming: false, text: aborted ? (m.text || "_(stopped)_") : `⚠️ Couldn't reach the agent backend: ${e.message}. Check the endpoint and its CORS settings.` }
+            ? { ...m, streaming: false, text: aborted ? (m.text || "_(stopped)_") : `⚠️ ${e.message}. Check the endpoint and that the backend is running (CORS too).` }
             : m
         ),
       }));
@@ -164,7 +165,6 @@ export default function Assistant() {
   };
 
   const stop = () => abortRef.current?.abort();
-
   const saveEndpoint = (v: string) => { setEndpoint(v); localStorage.setItem(ENDPOINT_KEY, v); };
 
   const removeSession = (id: string) => {
@@ -181,16 +181,6 @@ export default function Assistant() {
     setActiveId(s.id);
     setSideOpen(false);
   };
-
-  // mic button: quick tap = toggle, press-and-hold = push-to-talk
-  const micDown = () => { ptt.current = { down: Date.now() }; if (voice.micState !== "listening") voice.startListening(); };
-  const micUp = () => {
-    const held = ptt.current ? Date.now() - ptt.current.down : 0;
-    ptt.current = null;
-    if (held > 350 && voice.micState === "listening") voice.stopListening(); // release after a hold
-    else if (held <= 350 && voice.micState === "listening" && held > 0) { /* tap: leave it on (toggle) */ }
-  };
-  const micClick = () => { if (voice.micState === "listening") voice.stopListening(); };
 
   return (
     <div className="asst">
@@ -212,27 +202,17 @@ export default function Assistant() {
           <button onClick={() => setSideOpen(false)} className="asst__mobile-bar" style={{ ...iconBtn, padding: 2 }} aria-label="Close"><X size={16} /></button>
         </div>
 
-        <button onClick={addSession} style={{ display: "flex", alignItems: "center", gap: 9, padding: "10px 12px", borderRadius: 11, border: "1px solid var(--border-strong)", background: "var(--panel-strong)", color: "var(--text)", fontSize: 13.5, fontWeight: 500, marginBottom: 10 }}>
+        <button onClick={addSession} style={{ display: "flex", alignItems: "center", gap: 9, padding: "10px 12px", borderRadius: 11, border: "1px solid var(--border-strong)", background: "var(--panel-strong)", color: "var(--text)", fontSize: 13.5, fontWeight: 500, marginBottom: 12 }}>
           <Plus size={16} color="var(--accent)" /> New chat
         </button>
 
-        {/* agent selector */}
-        <div style={{ position: "relative", marginBottom: 12 }}>
-          <button onClick={() => setAgentMenu((o) => !o)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 9, padding: "9px 11px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--panel)", color: "var(--text)", fontSize: 13 }}>
-            <span style={{ width: 7, height: 7, borderRadius: 999, background: "var(--accent)" }} />
-            <span style={{ flex: 1, textAlign: "left" }}>{agent.label}</span>
-            <ChevronDown size={15} color="var(--text-faint)" />
-          </button>
-          {agentMenu && (
-            <div className="glass-surface" style={{ position: "absolute", top: "calc(100% + 5px)", left: 0, right: 0, zIndex: 5, borderRadius: 11, padding: 5, border: "1px solid var(--border-strong)" }}>
-              {AGENTS.map((a) => (
-                <button key={a.id} onClick={() => { setAgent(a); setAgentMenu(false); }} style={{ width: "100%", textAlign: "left", padding: "8px 10px", borderRadius: 8, border: "none", background: a.id === agent.id ? "var(--panel-strong)" : "transparent", color: "var(--text)", fontSize: 13 }}>
-                  <div style={{ fontWeight: 500 }}>{a.label}</div>
-                  <div style={{ fontSize: 11, color: "var(--text-faint)" }}>{a.hint}</div>
-                </button>
-              ))}
-            </div>
-          )}
+        {/* single agent — no selector */}
+        <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "9px 11px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--panel)", marginBottom: 12 }}>
+          <span style={{ width: 7, height: 7, borderRadius: 999, background: "var(--accent)" }} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 500 }}>Outreach agent</div>
+            <div style={{ fontSize: 11, color: "var(--text-faint)" }}>finds companies · drafts · replies</div>
+          </div>
         </div>
 
         <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 3, margin: "0 -4px", padding: "0 4px" }}>
@@ -247,11 +227,11 @@ export default function Assistant() {
       </aside>
 
       {/* ============ CENTER: thread ============ */}
-      <section className="asst__pane" style={{ ...paneBox, padding: 0, overflow: "hidden" }}>
+      <section className="asst__pane glass-surface" style={{ ...paneBox, padding: 0, overflow: "hidden" }}>
         <div ref={threadRef} role="log" aria-live="polite" aria-label="Conversation" style={{ flex: 1, overflowY: "auto", padding: "20px 22px", display: "flex", flexDirection: "column", gap: 14 }}>
           {active.messages.map((m) => (
             <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start", gap: 5 }}>
-              <div style={{ maxWidth: "86%", padding: "11px 14px", borderRadius: 15, background: m.role === "user" ? "var(--grad-soft)" : "var(--panel-strong)", border: "1px solid var(--border)", color: m.role === "user" ? "var(--text)" : "var(--text)", borderBottomRightRadius: m.role === "user" ? 5 : 15, borderBottomLeftRadius: m.role === "agent" ? 5 : 15 }}>
+              <div style={{ maxWidth: "86%", padding: "11px 14px", borderRadius: 15, background: m.role === "user" ? "var(--grad-soft)" : "var(--panel-strong)", border: "1px solid var(--border)", color: "var(--text)", borderBottomRightRadius: m.role === "user" ? 5 : 15, borderBottomLeftRadius: m.role === "agent" ? 5 : 15 }}>
                 {m.role === "agent" ? (
                   m.text ? <Markdown text={m.text} /> : <span style={{ color: "var(--text-faint)", fontSize: 13.5 }}>agent is thinking…</span>
                 ) : (
@@ -259,53 +239,60 @@ export default function Assistant() {
                 )}
                 {m.streaming && m.text && <span style={{ display: "inline-block", width: 7, height: 14, marginLeft: 2, background: "var(--accent)", verticalAlign: "text-bottom", animation: "blink 1s steps(2) infinite" }} />}
               </div>
-              {m.role === "agent" && m.text && !m.streaming && <MsgActions text={m.text} speaking={voice.speakingId === m.id} onSpeak={() => (voice.speakingId === m.id ? voice.stopSpeaking() : voice.speak(m.id, m.text))} ttsSupported={voice.ttsSupported} />}
+              {m.role === "agent" && m.text && !m.streaming && <CopyBtn text={m.text} />}
             </div>
           ))}
         </div>
 
-        {/* composer */}
-        <div className="glass-surface" style={{ margin: 12, marginTop: 0, padding: 10, borderRadius: 15, border: "1px solid var(--border-strong)" }}>
-          {voice.micState === "denied" && (
-            <div style={{ fontSize: 11.5, color: "var(--warn)", marginBottom: 8, paddingLeft: 4 }}>Mic access denied — continuing in text-only mode.</div>
-          )}
-          {voice.micState === "listening" && (
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, paddingLeft: 4 }}>
-              <Meter level={voice.level} />
-              <span style={{ fontSize: 12, color: "var(--magenta)" }}>Listening… {voice.interim && <em style={{ color: "var(--text-dim)" }}>“{voice.interim}”</em>}</span>
+        {/* ElevenLabs voice panel */}
+        {talkOpen && (
+          <div style={{ margin: "0 12px 8px", padding: 14, borderRadius: 14, border: "1px solid var(--border-strong)", background: "var(--panel)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+              <AudioLines size={15} color="var(--accent-2)" />
+              <span style={{ fontWeight: 600, fontSize: 13.5, flex: 1 }}>Talk to your agent</span>
+              <button onClick={() => setTalkOpen(false)} aria-label="Close voice" style={{ ...iconBtn, width: 28, height: 28 }}><X size={15} /></button>
             </div>
-          )}
-          <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
-            <button
-              onPointerDown={micDown}
-              onPointerUp={micUp}
-              onClick={micClick}
-              title={voice.micState === "unsupported" ? "Speech recognition not available in this browser" : "Tap to toggle · hold to push-to-talk"}
-              disabled={voice.micState === "unsupported"}
-              aria-pressed={voice.micState === "listening"}
-              style={{ width: 42, height: 42, flexShrink: 0, borderRadius: 12, border: "1px solid var(--border)", background: voice.micState === "listening" ? "var(--magenta)" : "var(--panel)", color: voice.micState === "listening" ? "#fff" : "var(--text-dim)", display: "grid", placeItems: "center", opacity: voice.micState === "unsupported" ? 0.4 : 1 }}
-            >
-              <Mic size={18} />
-            </button>
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-              rows={1}
-              placeholder={`Message the ${agent.label}…  (Enter to send, Shift+Enter for newline)`}
-              style={{ flex: 1, resize: "none", maxHeight: 140, padding: "11px 13px", borderRadius: 12, border: "1px solid var(--border)", background: "var(--bg-2)", color: "var(--text)", fontSize: 14, lineHeight: 1.5, outline: "none", fontFamily: "inherit" }}
-            />
-            {busy ? (
-              <button onClick={stop} title="Stop" style={{ width: 42, height: 42, flexShrink: 0, borderRadius: 12, border: "none", background: "var(--panel-strong)", color: "var(--text)", display: "grid", placeItems: "center" }}>
-                <Square size={16} />
-              </button>
+            {elevenAgent ? (
+              <div>
+                {createElement("elevenlabs-convai", { "agent-id": elevenAgent } as any)}
+                <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 8, lineHeight: 1.5 }}>Live voice via ElevenLabs — tap the orb to start talking.</p>
+              </div>
             ) : (
-              <button onClick={() => send()} disabled={!input.trim()} title="Send" style={{ width: 42, height: 42, flexShrink: 0, borderRadius: 12, border: "none", background: input.trim() ? "var(--accent)" : "var(--panel-strong)", color: "#1a0e06", display: "grid", placeItems: "center" }}>
-                <Send size={16} />
-              </button>
+              <p style={{ fontSize: 12.5, color: "var(--text-dim)", lineHeight: 1.6, margin: 0 }}>
+                No ElevenLabs agent set. Add <code style={{ fontFamily: "var(--mono)" }}>VITE_ELEVENLABS_AGENT_ID</code> to <code style={{ fontFamily: "var(--mono)" }}>.env</code> (or via the topbar “Talk”) to enable live voice.
+              </p>
             )}
           </div>
+        )}
+
+        {/* composer */}
+        <div className="glass-surface" style={{ margin: 12, marginTop: talkOpen ? 0 : 0, padding: 10, borderRadius: 15, border: "1px solid var(--border-strong)", display: "flex", alignItems: "flex-end", gap: 8 }}>
+          <button
+            onClick={() => setTalkOpen((o) => !o)}
+            title="Talk to your agent (ElevenLabs voice)"
+            aria-pressed={talkOpen}
+            style={{ height: 42, flexShrink: 0, padding: "0 14px", borderRadius: 12, border: "1px solid color-mix(in srgb, var(--accent-2) 40%, transparent)", background: talkOpen ? "var(--accent-2)" : "color-mix(in srgb, var(--accent-2) 12%, transparent)", color: talkOpen ? "#fff" : "var(--accent-2)", display: "flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 500 }}
+          >
+            <AudioLines size={17} /> Talk
+          </button>
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+            rows={1}
+            placeholder="Message your agent…  (Enter to send, Shift+Enter for newline)"
+            style={{ flex: 1, resize: "none", maxHeight: 140, padding: "11px 13px", borderRadius: 12, border: "1px solid var(--border)", background: "var(--bg-2)", color: "var(--text)", fontSize: 14, lineHeight: 1.5, outline: "none", fontFamily: "inherit" }}
+          />
+          {busy ? (
+            <button onClick={stop} title="Stop" style={{ width: 42, height: 42, flexShrink: 0, borderRadius: 12, border: "none", background: "var(--panel-strong)", color: "var(--text)", display: "grid", placeItems: "center" }}>
+              <Square size={16} />
+            </button>
+          ) : (
+            <button onClick={() => send()} disabled={!input.trim()} title="Send" style={{ width: 42, height: 42, flexShrink: 0, borderRadius: 12, border: "none", background: input.trim() ? "var(--accent)" : "var(--panel-strong)", color: "#1a0e06", display: "grid", placeItems: "center" }}>
+              <Send size={16} />
+            </button>
+          )}
         </div>
       </section>
 
@@ -325,7 +312,7 @@ export default function Assistant() {
             <div style={{ fontSize: 11.5, color: "var(--text-dim)", marginBottom: 6 }}>Agent endpoint (n8n webhook or /api/chat)</div>
             <input value={endpoint} onChange={(e) => saveEndpoint(e.target.value)} placeholder="https://…/webhook/chat" style={{ width: "100%", padding: "8px 10px", borderRadius: 9, border: "1px solid var(--border)", background: "var(--bg-2)", color: "var(--text)", fontSize: 12, fontFamily: "var(--mono)", outline: "none" }} />
             <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 8 }}>
-              Voice: {elevenAgent ? <span style={{ color: "var(--good)" }}>ElevenLabs agent connected</span> : "browser Web Speech (built-in)"}
+              Voice: {elevenAgent ? <span style={{ color: "var(--good)" }}>ElevenLabs agent connected</span> : "set VITE_ELEVENLABS_AGENT_ID for live voice"}
             </div>
           </div>
         )}
@@ -353,16 +340,6 @@ export default function Assistant() {
             ))
           )}
         </div>
-
-        {/* global TTS mute */}
-        <button onClick={voice.toggleMute} style={{ marginTop: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "9px 12px", borderRadius: 11, border: "1px solid var(--border)", background: "var(--panel)", color: voice.muted ? "var(--text-faint)" : "var(--text)", fontSize: 12.5 }}>
-          {voice.muted ? <VolumeX size={15} /> : <Volume2 size={15} color="var(--accent-2)" />} {voice.muted ? "Voice replies muted" : "Voice replies on"}
-        </button>
-        {elevenAgent && (
-          <div style={{ marginTop: 8, fontSize: 11, color: "var(--text-faint)", display: "flex", alignItems: "center", gap: 6, justifyContent: "center" }}>
-            <AudioLines size={12} color="var(--accent-2)" /> Full-duplex voice via the topbar “Talk”.
-          </div>
-        )}
       </aside>
     </div>
   );
@@ -370,30 +347,14 @@ export default function Assistant() {
 
 /* ----------------------------------------------------------- subcomponents */
 
-function MsgActions({ text, speaking, onSpeak, ttsSupported }: { text: string; speaking: boolean; onSpeak: () => void; ttsSupported: boolean }) {
+function CopyBtn({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => { try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1400); } catch { /* */ } };
   return (
-    <div style={{ display: "flex", gap: 6, paddingLeft: 4 }}>
-      <button onClick={copy} title="Copy" style={{ ...miniBtn, color: copied ? "var(--good)" : "var(--text-faint)" }}>{copied ? <Check size={13} /> : <Copy size={13} />}</button>
-      {ttsSupported && (
-        <button onClick={onSpeak} title={speaking ? "Stop" : "Speak"} style={{ ...miniBtn, color: speaking ? "var(--accent-2)" : "var(--text-faint)" }}>
-          {speaking ? <Square size={12} /> : <Volume2 size={13} />}
-        </button>
-      )}
-    </div>
-  );
-}
-
-function Meter({ level }: { level: number }) {
-  const bars = 14;
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 2, height: 18 }} aria-hidden>
-      {Array.from({ length: bars }).map((_, i) => {
-        const center = 1 - Math.abs(i - bars / 2) / (bars / 2);
-        const h = 3 + level * 15 * (0.5 + center) * (0.7 + ((i * 7) % 5) / 10);
-        return <span key={i} style={{ width: 2.5, height: Math.min(18, h), borderRadius: 2, background: "var(--magenta)", transition: "height .07s linear" }} />;
-      })}
+    <div style={{ paddingLeft: 4 }}>
+      <button onClick={copy} title="Copy" style={{ background: "none", border: "none", padding: 3, display: "grid", placeItems: "center", color: copied ? "var(--good)" : "var(--text-faint)" }}>
+        {copied ? <Check size={13} /> : <Copy size={13} />}
+      </button>
     </div>
   );
 }
@@ -404,7 +365,7 @@ function ConnBadge({ conn }: { conn: Conn }) {
     idle: { c: "var(--good)", t: "Connected", icon: <Wifi size={14} /> },
     connecting: { c: "var(--warn)", t: "Connecting…", icon: <Loader2 size={14} className="asst-spin" /> },
     streaming: { c: "var(--accent-2)", t: "Streaming response", icon: <Loader2 size={14} className="asst-spin" /> },
-    error: { c: "var(--bad)", t: "Connection error — retry to reconnect", icon: <WifiOff size={14} /> },
+    error: { c: "var(--bad)", t: "Backend error — retry to reconnect", icon: <WifiOff size={14} /> },
   };
   const s = map[conn];
   return (
@@ -425,4 +386,3 @@ function Stat({ label, value, mono }: { label: string; value: string; mono?: boo
 
 const paneBox: React.CSSProperties = { borderRadius: 16, border: "1px solid var(--border)", padding: 14 };
 const iconBtn: React.CSSProperties = { background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 10, width: 34, height: 34, color: "var(--text-dim)", display: "grid", placeItems: "center" };
-const miniBtn: React.CSSProperties = { background: "none", border: "none", padding: 3, display: "grid", placeItems: "center" };

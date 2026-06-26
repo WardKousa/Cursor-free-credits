@@ -74,12 +74,23 @@ export async function sendToAgent(
   cb: SendCallbacks = {}
 ): Promise<SendResult> {
   const started = performance.now();
+  // Keep the request minimal so we don't change how the backend responds:
+  // no forced Accept / stream flag (some backends content-negotiate on those).
+  // We detect streaming purely from the response content-type below.
   const res = await fetch(endpoint, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "text/event-stream, application/json" },
-    body: JSON.stringify({ prompt, history, stream: true }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt, history }),
     signal: cb.signal,
   });
+
+  // A non-2xx is a backend failure, not an empty reply — surface it loudly
+  // instead of rendering a blank agent bubble.
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    const snippet = body.trim().slice(0, 160);
+    throw new Error(`agent backend returned HTTP ${res.status}${snippet ? ` — ${snippet}` : ""}`);
+  }
 
   const ctype = res.headers.get("content-type") || "";
   const canStream = !!res.body && (ctype.includes("event-stream") || ctype.includes("text/plain"));
