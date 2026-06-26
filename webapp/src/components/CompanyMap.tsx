@@ -55,7 +55,9 @@ export default function CompanyMap({
     const place = () => {
       if (disposed || !mapRef.current) return;
       markersRef.current.forEach((m) => m.remove());
-      markersRef.current = companies.map((c) => {
+      markersRef.current = companies
+        .filter((c) => Number.isFinite(c.lat) && Number.isFinite(c.lng))
+        .map((c) => {
         const col = statusColors[c.status];
         // Mapbox owns the root element's `transform` (for positioning), so the
         // hover scale must live on an inner dot — otherwise it snaps to (0,0).

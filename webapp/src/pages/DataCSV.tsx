@@ -55,13 +55,15 @@ function ago(t: number | null) {
 }
 
 export default function DataCSV() {
-  const { companies, sheet, saveSheet, syncNow, sheetState, lastSync, sheetRows, sheetError } = useStore();
+  const { companies, sheet, saveSheet, syncNow, sheetState, lastSync, sheetRows, sheetError, sheetTable } = useStore();
   const [localTable, setLocalTable] = useState<Table | null>(null);
   const [drag, setDrag] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const table = localTable || companiesToTable(companies);
-  const source = localTable ? "Uploaded CSV" : "Enriched companies";
+  // prefer an uploaded CSV, then the live CRM sheet, then the seeded companies
+  const liveSheet = sheetTable && sheetTable.headers.length ? sheetTable : null;
+  const table = localTable || liveSheet || companiesToTable(companies);
+  const source = localTable ? "Uploaded CSV" : liveSheet ? "CRM · Google Sheet (live)" : "Enriched companies";
 
   const loadFile = (file: File) => {
     const reader = new FileReader();
