@@ -125,6 +125,76 @@ input::placeholder {
   filter: blur(40px);
 }
 
+/* ---- Particle background (global, behind everything) ------------------- */
+.particle-field {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+.particle-field canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* dim the field ~45% so busy clusters never fight the UI text */
+.particle-field__scrim {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 120% at 70% 20%, rgba(4, 4, 6, 0.34), rgba(4, 4, 6, 0.62));
+}
+@media (prefers-reduced-motion: reduce) {
+  .particle-field__scrim { background: rgba(4, 4, 6, 0.62); }
+}
+
+/* ---- Assistant dashboard layout ---------------------------------------- */
+.asst {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr) 312px;
+  gap: 14px;
+  padding: 14px;
+}
+.asst__pane { min-height: 0; display: flex; flex-direction: column; }
+.asst__mobile-bar { display: none; }
+.asst__scrim { display: none; }
+
+@media (max-width: 980px) {
+  .asst { grid-template-columns: minmax(0, 1fr); }
+  .asst__mobile-bar { display: flex; }
+  /* sidebar + rail become slide-over drawers */
+  .asst__sidebar, .asst__rail {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    width: 290px;
+    max-width: 86vw;
+    z-index: 40;
+    transition: transform 0.24s ease;
+  }
+  .asst__sidebar { left: 0; transform: translateX(-104%); }
+  .asst__rail { right: 0; transform: translateX(104%); }
+  .asst__sidebar.is-open, .asst__rail.is-open { transform: translateX(0); }
+  .asst__scrim.is-open {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 35;
+    background: rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* Shared chrome surface. Commit 1: a plain translucent panel so the dashboard
+   is reviewable. Task 2 upgrades THIS class in place to Apple Liquid Glass —
+   nothing else changes. */
+.glass-surface {
+  background: rgba(12, 12, 15, 0.62);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
 @keyframes fadeUp {
   from {
     opacity: 0;
@@ -135,6 +205,13 @@ input::placeholder {
     transform: translateY(0);
   }
 }
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.asst-spin { animation: spin 0.9s linear infinite; }
 
 @keyframes spin {
   to {
