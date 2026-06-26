@@ -1,65 +1,70 @@
-import { useState } from "react";
+import { useMemo } from "react";
 import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell,
 } from "recharts";
-import { ArrowUpRight, ArrowDownRight, MapPin, Bell, ChevronRight } from "lucide-react";
-import { Card, SectionTitle, Pill, Badge } from "../components/ui";
-import { statusColors, timeline, industryMix } from "../lib/data";
-import CompanyMap from "../components/CompanyMap";
+import { Bell, ChevronRight, Database } from "lucide-react";
+import { Card, SectionTitle, Badge } from "../components/ui";
+import { statusColors, Company } from "../lib/data";
 import { useStore } from "../lib/store";
 
-const RANGES = [
-  { id: "7d", label: "7 days", days: 7 },
-  { id: "14d", label: "14 days", days: 14 },
-  { id: "30d", label: "30 days", days: 30 },
-];
-
-const tooltipStyle = {
-  background: "rgba(14,14,21,0.95)",
-  border: "1px solid var(--border-strong)",
-  borderRadius: 12,
-  fontSize: 12,
-  color: "#f6f5f3",
-};
-// recharts colors the label/items separately from the container — force white
+const tooltipStyle = { background: "rgba(14,14,21,0.95)", border: "1px solid var(--border-strong)", borderRadius: 12, fontSize: 12, color: "#f6f5f3" };
 const tipText = { color: "#f6f5f3" };
+const PALETTE = ["#2f7dff", "#4fd06a", "#efd29a", "#ff8a3d", "#ff2d9b", "#7c5cff", "#37c4d6"];
 
-export default function Dashboard({ onOpenInbox }: { onOpenInbox: () => void }) {
-  const { companies, openCount } = useStore();
-  const [range, setRange] = useState("14d");
-  const days = RANGES.find((r) => r.id === range)!.days;
-  const data = timeline.slice(-Math.min(days, timeline.length));
+/** Everything on this page is derived from the live CRM companies (the synced
+ *  Google Sheet / CSV) — no mock numbers. */
+function derive(companies: Company[]) {
+  const total = companies.length;
+  const by = (s: Company["status"]) => companies.filter((c) => c.status === s).length;
+  const counts = { researching: by("researching"), queued: by("queued"), contacted: by("contacted"), replied: by("replied"), won: by("won") };
+  const reachedOut = counts.contacted + counts.replied + counts.won;
+  const responded = counts.replied + counts.won;
+  const replyRate = reachedOut ? (responded / reachedOut) * 100 : 0;
+  const avgScore = total ? Math.round(companies.reduce((s, c) => s + (c.score || 0), 0) / total) : 0;
 
-  // derive headline numbers for the window
-  const reached = data.reduce((s, d) => s + d.sent, 0);
-  const replied = data.reduce((s, d) => s + d.replied, 0);
-  const meetings = data.reduce((s, d) => s + d.meetings, 0);
-  const replyRate = reached ? ((replied / reached) * 100).toFixed(1) : "0";
+  const pipeline = [
+    { stage: "Researching", value: counts.researching, fill: statusColors.researching },
+    { stage: "Queued", value: counts.queued, fill: statusColors.queued },
+    { stage: "Contacted", value: counts.contacted, fill: statusColors.contacted },
+    { stage: "Replied", value: counts.replied, fill: statusColors.replied },
+    { stage: "Won", value: counts.won, fill: statusColors.won },
+  ];
 
-  // response breakdown for the donut
   const responses = [
-    { name: "Replied", value: replied, fill: "#ff2d9b" },
-    { name: "Opened, no reply", value: Math.round(reached * 0.4), fill: "#2f7dff" },
-    { name: "No response", value: reached - replied - Math.round(reached * 0.4), fill: "#23232a" },
+    { name: "Responded", value: responded, fill: "#4fd06a" },
+    { name: "Contacted, no reply", value: counts.contacted, fill: "#ff8a3d" },
+    { name: "Not yet contacted", value: counts.researching + counts.queued, fill: "#2f7dff" },
+  ].filter((r) => r.value > 0);
+
+  const indCounts: Record<string, number> = {};
+  companies.forEach((c) => { const k = c.industry || "—"; indCounts[k] = (indCounts[k] || 0) + 1; });
+  const indSorted = Object.entries(indCounts).sort((a, b) => b[1] - a[1]);
+  const industryMix = indSorted.slice(0, 6).map(([name, value], i) => ({ name, value, fill: PALETTE[i % PALETTE.length] }));
+  const otherSum = indSorted.slice(6).reduce((s, [, v]) => s + v, 0);
+  if (otherSum) industryMix.push({ name: "Other", value: otherSum, fill: "#37414f" });
+
+  const icp = [
+    { name: "0–39", value: companies.filter((c) => c.score < 40).length, fill: "#ff4d6d" },
+    { name: "40–59", value: companies.filter((c) => c.score >= 40 && c.score < 60).length, fill: "#efc25a" },
+    { name: "60–79", value: companies.filter((c) => c.score >= 60 && c.score < 80).length, fill: "#2f7dff" },
+    { name: "80–100", value: companies.filter((c) => c.score >= 80).length, fill: "#4fd06a" },
   ];
 
   const kpis = [
-    { label: "Companies reached out", value: reached.toLocaleString(), delta: "+12.4%", up: true },
-    { label: "Responded", value: replied.toLocaleString(), delta: "+6.1%", up: true },
-    { label: "Reply rate", value: replyRate + "%", delta: "+2.3pt", up: true },
-    { label: "Meetings booked", value: meetings.toLocaleString(), delta: "-4.0%", up: false },
+    { label: "Companies in CRM", value: total.toLocaleString(), sub: `${counts.researching + counts.queued} not yet contacted` },
+    { label: "Reached out", value: reachedOut.toLocaleString(), sub: total ? `${Math.round((reachedOut / total) * 100)}% of pipeline` : "—" },
+    { label: "Reply rate", value: replyRate.toFixed(1) + "%", sub: `${responded} responded` },
+    { label: "Meetings booked", value: counts.won.toLocaleString(), sub: `avg ICP ${avgScore}` },
   ];
+
+  return { total, replyRate, pipeline, responses, industryMix, icp, kpis };
+}
+
+export default function Dashboard({ onOpenInbox }: { onOpenInbox: () => void }) {
+  const { companies, openCount, sheetState, lastSync } = useStore();
+  const a = useMemo(() => derive(companies), [companies]);
+
+  const recent = companies.filter((c) => c.status === "replied" || c.status === "won").slice(0, 8);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -72,29 +77,17 @@ export default function Dashboard({ onOpenInbox }: { onOpenInbox: () => void }) 
             Who we contacted, and who's responding
           </h1>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          {RANGES.map((r) => (
-            <Pill key={r.id} active={range === r.id} onClick={() => setRange(r.id)}>
-              {r.label}
-            </Pill>
-          ))}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--text-faint)" }}>
+          <Database size={13} color={sheetState === "ok" ? "var(--good)" : "var(--text-faint)"} />
+          {a.total} companies · {sheetState === "ok" ? "live CRM" : sheetState === "syncing" ? "syncing…" : "CRM"}
+          {lastSync ? ` · ${new Date(lastSync).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : ""}
         </div>
       </div>
 
       {openCount > 0 && (
         <button
           onClick={onOpenInbox}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            padding: "13px 16px",
-            borderRadius: 12,
-            border: "1px solid var(--border)",
-            background: "var(--panel-strong)",
-            color: "var(--text)",
-            textAlign: "left",
-          }}
+          style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 16px", borderRadius: 12, border: "1px solid var(--border)", background: "var(--panel-strong)", color: "var(--text)", textAlign: "left" }}
         >
           <Bell size={17} color="var(--accent)" />
           <span style={{ fontSize: 13.5 }}>
@@ -104,70 +97,46 @@ export default function Dashboard({ onOpenInbox }: { onOpenInbox: () => void }) 
         </button>
       )}
 
-      {/* KPI row */}
+      {/* KPI row — derived from the CRM */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
-        {kpis.map((k) => (
+        {a.kpis.map((k) => (
           <Card key={k.label} pad={18}>
             <div style={{ color: "var(--text-faint)", fontSize: 12.5 }}>{k.label}</div>
-            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginTop: 10 }}>
-              <div style={{ fontSize: 28, fontWeight: 600, letterSpacing: "-0.02em" }}>{k.value}</div>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 3,
-                  fontSize: 12.5,
-                  color: k.up ? "var(--good)" : "var(--bad)",
-                }}
-              >
-                {k.up ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
-                {k.delta}
-              </div>
-            </div>
+            <div style={{ fontSize: 28, fontWeight: 600, letterSpacing: "-0.02em", marginTop: 10 }}>{k.value}</div>
+            <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 4 }}>{k.sub}</div>
           </Card>
         ))}
       </div>
 
-      {/* Reached-out-over-time + response donut */}
+      {/* Pipeline by stage + response donut */}
       <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 14 }}>
         <Card>
-          <SectionTitle title="Companies reached out over time" sub={`Last ${days} days · sent vs. replied`} />
+          <SectionTitle title="Pipeline by stage" sub="Every company by where it is in outreach" />
           <ResponsiveContainer width="100%" height={250}>
-            <AreaChart data={data} margin={{ left: -18, right: 8, top: 8 }}>
-              <defs>
-                <linearGradient id="gSent" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#2f7dff" stopOpacity={0.45} />
-                  <stop offset="100%" stopColor="#2f7dff" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="gRep" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#ff2d9b" stopOpacity={0.45} />
-                  <stop offset="100%" stopColor="#ff2d9b" stopOpacity={0} />
-                </linearGradient>
-              </defs>
+            <BarChart data={a.pipeline} margin={{ left: -18, right: 8, top: 8 }}>
               <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
-              <XAxis dataKey="day" stroke="var(--text-faint)" fontSize={11} tickLine={false} axisLine={false} />
-              <YAxis stroke="var(--text-faint)" fontSize={11} tickLine={false} axisLine={false} />
-              <Tooltip contentStyle={tooltipStyle} labelStyle={tipText} itemStyle={tipText} cursor={{ stroke: "rgba(255,255,255,0.15)" }} />
-              <Area type="monotone" dataKey="sent" stroke="#2f7dff" strokeWidth={2} fill="url(#gSent)" name="Reached out" />
-              <Area type="monotone" dataKey="replied" stroke="#ff2d9b" strokeWidth={2} fill="url(#gRep)" name="Replied" />
-            </AreaChart>
+              <XAxis dataKey="stage" stroke="var(--text-faint)" fontSize={11} tickLine={false} axisLine={false} />
+              <YAxis stroke="var(--text-faint)" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+              <Tooltip contentStyle={tooltipStyle} labelStyle={tipText} itemStyle={tipText} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
+              <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={46}>
+                {a.pipeline.map((d) => <Cell key={d.stage} fill={d.fill} />)}
+              </Bar>
+            </BarChart>
           </ResponsiveContainer>
         </Card>
 
         <Card>
-          <SectionTitle title="Have they responded?" sub={`${replyRate}% reply rate`} />
+          <SectionTitle title="Have they responded?" sub={`${a.replyRate.toFixed(1)}% reply rate of those contacted`} />
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
-              <Pie data={responses} dataKey="value" innerRadius={56} outerRadius={84} paddingAngle={3} stroke="none">
-                {responses.map((r) => (
-                  <Cell key={r.name} fill={r.fill} />
-                ))}
+              <Pie data={a.responses} dataKey="value" innerRadius={56} outerRadius={84} paddingAngle={3} stroke="none">
+                {a.responses.map((r) => <Cell key={r.name} fill={r.fill} />)}
               </Pie>
               <Tooltip contentStyle={tooltipStyle} labelStyle={tipText} itemStyle={tipText} />
             </PieChart>
           </ResponsiveContainer>
           <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 6 }}>
-            {responses.map((r) => (
+            {a.responses.map((r) => (
               <div key={r.name} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5 }}>
                 <span style={{ width: 9, height: 9, borderRadius: 3, background: r.fill }} />
                 <span style={{ color: "var(--text-dim)", flex: 1 }}>{r.name}</span>
@@ -178,73 +147,55 @@ export default function Dashboard({ onOpenInbox }: { onOpenInbox: () => void }) 
         </Card>
       </div>
 
-      {/* Where (map) + What they do (industry) */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 14 }}>
+      {/* ICP fit distribution + industry mix */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
         <Card>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <SectionTitle title="Where they are" sub="Targeted companies across the Netherlands" />
-            <Badge color="var(--accent-3)">
-              <MapPin size={11} /> {companies.length} locations
-            </Badge>
-          </div>
-          <CompanyMap companies={companies} height={300} />
-          <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 14 }}>
-            {Object.entries(statusColors).map(([k, c]) => (
-              <div key={k} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-dim)" }}>
-                <span style={{ width: 8, height: 8, borderRadius: 999, background: c }} />
-                <span style={{ textTransform: "capitalize" }}>{k}</span>
-              </div>
-            ))}
-          </div>
+          <SectionTitle title="ICP fit distribution" sub="Companies bucketed by fit score (0–100)" />
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={a.icp} margin={{ left: -18, right: 8, top: 8 }}>
+              <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
+              <XAxis dataKey="name" stroke="var(--text-faint)" fontSize={11} tickLine={false} axisLine={false} />
+              <YAxis stroke="var(--text-faint)" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+              <Tooltip contentStyle={tooltipStyle} labelStyle={tipText} itemStyle={tipText} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
+              <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={46}>
+                {a.icp.map((d) => <Cell key={d.name} fill={d.fill} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </Card>
 
         <Card>
-          <SectionTitle title="What they do" sub="Industry mix of contacted companies" />
+          <SectionTitle title="What they do" sub="Industry mix of CRM companies" />
           <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={industryMix} layout="vertical" margin={{ left: 18, right: 16 }}>
+            <BarChart data={a.industryMix} layout="vertical" margin={{ left: 18, right: 16 }}>
               <CartesianGrid stroke="rgba(255,255,255,0.05)" horizontal={false} />
-              <XAxis type="number" hide />
-              <YAxis dataKey="name" type="category" stroke="var(--text-dim)" fontSize={12} tickLine={false} axisLine={false} width={86} />
+              <XAxis type="number" hide allowDecimals={false} />
+              <YAxis dataKey="name" type="category" stroke="var(--text-dim)" fontSize={12} tickLine={false} axisLine={false} width={96} />
               <Tooltip contentStyle={tooltipStyle} labelStyle={tipText} itemStyle={tipText} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
-              <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={18}>
-                {industryMix.map((d) => (
-                  <Cell key={d.name} fill={d.fill} />
-                ))}
+              <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={16}>
+                {a.industryMix.map((d) => <Cell key={d.name} fill={d.fill} />)}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
         </Card>
       </div>
 
-      {/* Recent responses */}
+      {/* Latest responses */}
       <Card>
-        <SectionTitle title="Latest responses" sub="Most recent companies that replied" />
+        <SectionTitle title="Latest responses" sub="Companies that replied or booked a meeting" />
         <div style={{ display: "flex", flexDirection: "column" }}>
-          {companies
-            .filter((c) => c.status === "replied" || c.status === "won")
-            .map((c, i) => (
-              <div
-                key={c.id}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 180px 180px 130px",
-                  gap: 16,
-                  alignItems: "center",
-                  padding: "12px 4px",
-                  borderTop: i === 0 ? "none" : "1px solid var(--border)",
-                  fontSize: 13.5,
-                }}
-              >
-                <div style={{ fontWeight: 500 }}>{c.name}</div>
-                <div style={{ color: "var(--text-dim)", textAlign: "right" }}>{c.industry}</div>
-                <div style={{ color: "var(--text-dim)", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
-                  <MapPin size={13} /> {c.city}
-                </div>
-                <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                  <Badge color={statusColors[c.status]}>{c.status === "won" ? "meeting booked" : "replied"}</Badge>
-                </div>
+          {recent.length === 0 ? (
+            <div style={{ padding: "16px 4px", color: "var(--text-faint)", fontSize: 13 }}>No replies yet — agents are still working the pipeline.</div>
+          ) : recent.map((c, i) => (
+            <div key={c.id} style={{ display: "grid", gridTemplateColumns: "1fr 180px 160px 130px", gap: 16, alignItems: "center", padding: "12px 4px", borderTop: i === 0 ? "none" : "1px solid var(--border)", fontSize: 13.5 }}>
+              <div style={{ fontWeight: 500 }}>{c.name}</div>
+              <div style={{ color: "var(--text-dim)", textAlign: "right" }}>{c.industry}</div>
+              <div style={{ color: "var(--text-dim)", textAlign: "right" }}>{c.employees ? `${c.employees.toLocaleString()} emp` : "—"}</div>
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <Badge color={statusColors[c.status]}>{c.status === "won" ? "meeting booked" : "replied"}</Badge>
               </div>
-            ))}
+            </div>
+          ))}
         </div>
       </Card>
     </div>
