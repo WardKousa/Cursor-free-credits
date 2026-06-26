@@ -24,7 +24,16 @@ export function extractReply(raw: string): string {
 
   const fromObject = (o: any): string | undefined => {
     if (o == null) return undefined;
-    if (typeof o === "string") return o;
+    if (typeof o === "string") {
+      // A value can itself be stringified JSON (e.g. n8n AI Agent returns
+      // {output: "{\"reply\":\"…\"}"}). Unwrap one level so we show the reply,
+      // not the raw JSON. Plain text falls through unchanged.
+      const t = o.trim();
+      if (t.startsWith("{") || t.startsWith("[")) {
+        try { const r = fromObject(JSON.parse(t)); if (r) return r; } catch { /* not JSON */ }
+      }
+      return o;
+    }
     if (Array.isArray(o)) {
       for (const item of o) {
         const r = fromObject(item);
