@@ -1,0 +1,76 @@
+name: Deploy to Fluxzero Cloud
+
+on:
+  workflow_dispatch:
+    inputs:
+      cluster-name:
+        description: "Cluster name"
+        required: true
+        default: "Test"
+      application-name:
+        description: "Application name"
+        required: true
+        default: "Sample"
+      image-name:
+        description: "Docker image name"
+        required: true
+        default: "sample"
+
+jobs:
+  maven-build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '25'
+          cache: 'maven'
+
+      - name: Build with Maven
+        run: mvn -B -T1C package
+
+      - name: Generate Fluxzero JWT
+        id: jwt
+        uses: fluxzero-io/fluxzero-jwt-action@v1
+        with:
+          api-key: ${{ secrets.FLUXZERO_API_KEY }}
+
+      - name: Log in to Fluxzero Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: registry.fluxzero.io
+          username: ${{ steps.jwt.outputs.userId }}
+          password: ${{ steps.jwt.outputs.token }}
+
+      - name: Extract metadata
+        id: metadata
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            registry.fluxzero.io/${{ github.event.inputs.image-name }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+
+      - name: Deploy to Fluxzero cluster
+        uses: fluxzero-io/fluxzero-deploy-action@v1
+        with:
+          cluster-name: ${{ github.event.inputs.cluster-name }}
+          application-name: ${{ github.event.inputs.application-name }}
+          image-name: ${{ github.event.inputs.image-name }}
+          version: ${{ steps.metadata.outputs.version }}
+          token: ${{ steps.jwt.outputs.token }}
