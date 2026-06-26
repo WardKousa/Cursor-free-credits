@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { companies as seedCompanies, Company, normalizeStatus } from "./data";
+import { companies as seedCompanies, Company, normalizeStatus, cityForKey } from "./data";
 
 /* ------------------------------------------------------------------ types */
 
@@ -105,17 +105,29 @@ function rowsToCompanies(headers: string[], rows: string[][]): Company[] | null 
   const em = idx(["employees", "size", "company_size"]);
   return rows
     .filter((r) => r[ni])
-    .map((r, i) => ({
-      id: "s" + i,
-      name: r[ni],
-      industry: ind >= 0 ? r[ind] : "—",
-      city: ci >= 0 ? r[ci] : "—",
-      lat: la >= 0 ? parseFloat(r[la]) : NaN, // no geo column → off-map (skipped by map)
-      lng: lo >= 0 ? parseFloat(r[lo]) : NaN,
-      employees: em >= 0 ? parseInt(r[em]) || 0 : 0,
-      status: normalizeStatus(st >= 0 ? r[st] : undefined),
-      score: sc >= 0 ? parseInt(r[sc]) || 60 : 60,
-    }));
+    .map((r, i) => {
+      let lat = la >= 0 ? parseFloat(r[la]) : NaN;
+      let lng = lo >= 0 ? parseFloat(r[lo]) : NaN;
+      let city = ci >= 0 ? r[ci] : "";
+      // No geo in the sheet → assign a stable random Dutch city so the map plots.
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        const g = cityForKey(r[ni] || "row" + i);
+        lat = g.lat;
+        lng = g.lng;
+        if (!city) city = g.city;
+      }
+      return {
+        id: "s" + i,
+        name: r[ni],
+        industry: ind >= 0 ? r[ind] : "—",
+        city,
+        lat,
+        lng,
+        employees: em >= 0 ? parseInt(r[em]) || 0 : 0,
+        status: normalizeStatus(st >= 0 ? r[st] : undefined),
+        score: sc >= 0 ? parseInt(r[sc]) || 60 : 60,
+      };
+    });
 }
 
 const LS = "mooizicht_sheet_cfg";

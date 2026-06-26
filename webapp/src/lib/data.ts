@@ -45,6 +45,43 @@ export function normalizeStatus(raw?: string): Status {
   return "uncontacted";
 }
 
+// The CRM sheet has no location columns, so when a row has no geo we assign a
+// Dutch city deterministically (same company → same city every render) just so
+// the map has something to plot.
+export const NL_CITIES: { city: string; lat: number; lng: number }[] = [
+  { city: "Amsterdam", lat: 52.3676, lng: 4.9041 },
+  { city: "Rotterdam", lat: 51.9244, lng: 4.4777 },
+  { city: "Den Haag", lat: 52.0705, lng: 4.3007 },
+  { city: "Utrecht", lat: 52.0907, lng: 5.1214 },
+  { city: "Eindhoven", lat: 51.4416, lng: 5.4697 },
+  { city: "Groningen", lat: 53.2194, lng: 6.5665 },
+  { city: "Tilburg", lat: 51.5606, lng: 5.0913 },
+  { city: "Almere", lat: 52.3508, lng: 5.2647 },
+  { city: "Breda", lat: 51.5719, lng: 4.7683 },
+  { city: "Nijmegen", lat: 51.8126, lng: 5.8372 },
+  { city: "Haarlem", lat: 52.3874, lng: 4.6462 },
+  { city: "Arnhem", lat: 51.9851, lng: 5.8987 },
+  { city: "Enschede", lat: 52.2215, lng: 6.8937 },
+  { city: "Apeldoorn", lat: 52.2112, lng: 5.9699 },
+  { city: "Zwolle", lat: 52.5168, lng: 6.0830 },
+  { city: "Leiden", lat: 52.1601, lng: 4.4970 },
+  { city: "Maastricht", lat: 50.8514, lng: 5.6909 },
+  { city: "Delft", lat: 52.0116, lng: 4.3571 },
+  { city: "'s-Hertogenbosch", lat: 51.6978, lng: 5.3037 },
+  { city: "Dordrecht", lat: 51.8133, lng: 4.6901 },
+];
+
+/** Stable city + coordinates for a company (hash of a key), with a small
+ *  deterministic jitter so multiple companies in one city don't stack. */
+export function cityForKey(key: string): { city: string; lat: number; lng: number } {
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  const base = NL_CITIES[h % NL_CITIES.length];
+  const jx = (((h >> 3) % 100) / 100 - 0.5) * 0.09;
+  const jy = (((h >> 7) % 100) / 100 - 0.5) * 0.09;
+  return { city: base.city, lat: base.lat + jy, lng: base.lng + jx };
+}
+
 export type Company = {
   id: string;
   name: string;
