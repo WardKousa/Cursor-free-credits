@@ -153,7 +153,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [inbox, setInbox] = useState<InboxItem[]>(seedInbox);
   const notifyCfg = JSON.parse(localStorage.getItem(LS_NOTIFY) || "{}");
   const [notifyEmail, setNotifyEmailS] = useState<string>(notifyCfg.email || "josemacontrerasp@gmail.com");
-  const [notifyWebhook, setNotifyWebhookS] = useState<string>(notifyCfg.webhook || "");
+  const [notifyWebhook, setNotifyWebhookS] = useState<string>(notifyCfg.webhook || (import.meta as any).env?.VITE_WEBHOOKURL || "");
   const [autopilot, setAutopilot] = useState(true);
 
   const saveSheet = useCallback((p: Partial<Store["sheet"]>) => {
