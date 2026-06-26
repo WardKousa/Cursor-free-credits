@@ -19,6 +19,7 @@ import static io.fluxzero.sdk.configuration.ApplicationProperties.getProperty;
 @Slf4j
 public class TestApp {
     public static void main(String[] args) {
+        com.example.cusforfreecredits.config.EnvLoader.loadDefault();
         // start Flux Test Server
         System.setProperty("FLUX_PORT", getProperty("FLUX_PORT", "8888"));
         int fluxPort = ApplicationProperties.getIntegerProperty("FLUX_PORT");

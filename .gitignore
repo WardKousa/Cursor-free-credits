@@ -69,3 +69,8 @@ node_modules/
 
 # Yarn Integrity file
 .yarn-integrity
+
+# Local environment files (never commit secrets)
+.env
+.env.local
+.env.*.local
